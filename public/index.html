@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Speaking Coach (Pro)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .mic-active { animation: pulse 1.5s infinite; background-color: #ef4444; border-color: #f87171; }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .tip-modal { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(5px); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="max-w-md w-full bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700 relative">
+       
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-bold text-blue-400">⚡ AI Speaking Coach</h1>
+            <p id="connectionStatus" class="text-[10px] text-gray-500 mt-1">Versión Segura (Backend)</p>
+        </div>
+
+        <div class="mb-6">
+            <div class="flex gap-2">
+                <input type="text" id="userText" placeholder="Escribe palabra (ej: Beach)" class="flex-1 p-3 rounded-lg bg-slate-700 border-none focus:ring-2 focus:ring-blue-500 text-white outline-none font-medium text-lg placeholder-gray-500">
+                <button id="btnAnalyze" class="bg-blue-600 hover:bg-blue-500 text-white px-6 rounded-lg font-bold transition shadow-lg active:scale-95">
+                    GO
+                </button>
+            </div>
+        </div>
+
+        <div id="phoneticPanel" class="hidden bg-slate-900 rounded-xl p-4 mb-6 border border-slate-700 relative overflow-hidden transition-all fade-in">
+            <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+            
+            <div class="grid grid-cols-2 gap-4 text-center mb-3">
+                <div>
+                    <p class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">IPA</p>
+                    <p id="phoneticEn" class="text-xl font-mono text-yellow-300 mt-1 tracking-wide">--</p>
+                </div>
+                <div>
+                    <p class="text-[10px] text-gray-400 uppercase tracking-widest font-bold">Español</p>
+                    <p id="phoneticEs" class="text-xl font-bold text-green-300 mt-1">--</p>
+                </div>
+            </div>
+
+            <button id="btnShowTip" class="hidden w-full mb-3 bg-blue-900/30 hover:bg-blue-900/50 text-blue-300 py-2 rounded-lg text-sm font-bold border border-blue-800 transition">
+                💡 Ver Tip Pro
+            </button>
+
+            <div id="tipContainer" class="hidden absolute inset-0 tip-modal z-20 flex flex-col justify-center items-center p-6 text-center fade-in">
+                <button id="btnCloseTip" class="absolute top-2 right-2 text-gray-400 hover:text-white p-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <p class="text-[10px] text-blue-400 uppercase tracking-widest font-bold mb-2">💡 Tip Pro:</p>
+                <p id="pronunciationTip" class="text-lg text-gray-200 italic leading-snug"></p>
+            </div>
+            
+            <button id="btnSpeakAI" class="w-full mt-2 bg-slate-800 hover:bg-slate-700 py-3 rounded-lg flex items-center justify-center gap-2 transition border border-slate-600 group">
+                <span class="group-hover:text-blue-300 font-medium text-sm">👂 Escuchar pronunciación</span>
+            </button>
+        </div>
+
+        <div id="practicePanel" class="hidden text-center fade-in">
+            <div class="mb-4 text-sm text-gray-400 border-t border-slate-700 pt-4">Tu turno:</div>
+            
+            <button id="btnRecord" class="rounded-full w-24 h-24 bg-slate-700 hover:bg-slate-600 flex items-center justify-center mx-auto transition-all shadow-xl border-4 border-slate-600 group cursor-pointer relative">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white group-hover:scale-110 transition z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+            </button>
+            <p id="statusText" class="text-xs text-gray-500 mt-3 font-semibold min-h-[1.5em]">Toca para activar micro</p>
+        </div>
+
+        <div id="resultPanel" class="hidden mt-6 p-4 bg-slate-800 rounded-xl border border-slate-600 text-center shadow-lg fade-in">
+            <p class="text-xs text-gray-400 mb-1">Te entendí:</p>
+            <p id="heardText" class="text-white text-xl font-medium italic mb-4 text-blue-200">"..."</p>
+            
+            <div class="relative pt-1 px-2">
+                <div class="flex mb-2 items-center justify-between">
+                    <div><span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Precisión</span></div>
+                    <div class="text-right"><span id="scoreText" class="text-sm font-bold text-white">0%</span></div>
+                </div>
+                <div class="overflow-hidden h-3 mb-4 text-xs flex rounded-full bg-slate-900 border border-slate-700">
+                    <div id="scoreBar" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500 transition-all duration-1000 w-0"></div>
+                </div>
+            </div>
+            <p id="feedbackMsg" class="text-sm font-bold text-white mt-1"></p>
+        </div>
+
+    </div>
+
+    <script>
+        // Elementos UI
+        const userText = document.getElementById('userText');
+        const btnAnalyze = document.getElementById('btnAnalyze');
+        const phoneticPanel = document.getElementById('phoneticPanel');
+        const practicePanel = document.getElementById('practicePanel');
+        const phoneticEn = document.getElementById('phoneticEn');
+        const phoneticEs = document.getElementById('phoneticEs');
+        
+        // Elementos Tip
+        const pronunciationTip = document.getElementById('pronunciationTip');
+        const btnShowTip = document.getElementById('btnShowTip');
+        const tipContainer = document.getElementById('tipContainer');
+        const btnCloseTip = document.getElementById('btnCloseTip');
+
+        const btnSpeakAI = document.getElementById('btnSpeakAI');
+        const btnRecord = document.getElementById('btnRecord');
+        const statusText = document.getElementById('statusText');
+        const resultPanel = document.getElementById('resultPanel');
+        const heardText = document.getElementById('heardText');
+        const scoreText = document.getElementById('scoreText');
+        const scoreBar = document.getElementById('scoreBar');
+        const feedbackMsg = document.getElementById('feedbackMsg');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        let recognition;
+        let synthesis = window.speechSynthesis;
+        let gotResult = false; 
+        let globalStream = null;
+
+        // --- LÓGICA DEL TIP PRO ---
+        btnShowTip.addEventListener('click', () => { tipContainer.classList.remove('hidden'); });
+        btnCloseTip.addEventListener('click', () => { tipContainer.classList.add('hidden'); });
+
+        // --- BOTÓN ANALIZAR (Backend Call) ---
+        btnAnalyze.addEventListener('click', async () => {
+            const text = userText.value.trim();
+            if (!text) return;
+
+            const originalText = btnAnalyze.innerText;
+            btnAnalyze.innerText = "⏳";
+            btnAnalyze.disabled = true;
+            userText.disabled = true;
+            phoneticPanel.classList.add('opacity-50');
+            tipContainer.classList.add('hidden');
+            btnShowTip.classList.add('hidden');
+
+            try {
+                // LLAMADA AL BACKEND PROPIO
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) throw new Error("Error en servidor");
+                
+                const data = await response.json();
+
+                phoneticEn.innerText = data.ipa;
+                phoneticEs.innerText = data.spanish_sound;
+                pronunciationTip.innerText = data.tip; 
+
+                phoneticPanel.classList.remove('hidden', 'opacity-50');
+                btnShowTip.classList.remove('hidden');
+                practicePanel.classList.remove('hidden');
+                resultPanel.classList.add('hidden');
+                connectionStatus.innerText = "● Conectado (Seguro)";
+                connectionStatus.className = "text-[10px] text-green-400 mt-1";
+
+            } catch (error) {
+                console.error(error);
+                alert("Error de conexión con el servidor.");
+                connectionStatus.innerText = "● Error";
+                connectionStatus.className = "text-[10px] text-red-400 mt-1";
+            } finally {
+                btnAnalyze.innerText = originalText;
+                btnAnalyze.disabled = false;
+                userText.disabled = false;
+                phoneticPanel.classList.remove('opacity-50');
+            }
+        });
+
+        // --- RECONOCIMIENTO DE VOZ ---
+        // Nota: Para Android se recomienda Chrome. Para iOS, Safari (requiere interacción del usuario).
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                gotResult = false;
+                btnRecord.classList.add('mic-active');
+                statusText.innerText = "¡Habla ahora!";
+                statusText.classList.add('text-red-400');
+            };
+
+            recognition.onend = () => {
+                btnRecord.classList.remove('mic-active');
+                statusText.classList.remove('text-red-400');
+                if (!gotResult) statusText.innerText = "No te escuché. Toca de nuevo.";
+                else statusText.innerText = "Toca para intentar de nuevo";
+            };
+
+            recognition.onresult = (event) => {
+                gotResult = true;
+                const transcript = event.results[0][0].transcript;
+                heardText.innerText = `"${transcript}"`;
+                calculateScore(userText.value, transcript);
+                statusText.innerText = "Calculando..."; 
+            };
+            
+            recognition.onerror = (event) => {
+                btnRecord.classList.remove('mic-active');
+                statusText.innerText = "Error: " + event.error;
+            };
+        } else {
+            statusText.innerText = "Navegador no soportado.";
+        }
+
+        // --- TTS ---
+        btnSpeakAI.addEventListener('click', () => {
+            if (synthesis.speaking) synthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(userText.value);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.8;
+            synthesis.speak(utterance);
+        });
+
+        // --- MANEJO MICRÓFONO ---
+        btnRecord.addEventListener('click', async () => {
+            if (!globalStream) {
+                try {
+                    statusText.innerText = "Solicitando permiso...";
+                    globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                } catch (err) {
+                    console.error("Permiso denegado", err);
+                    statusText.innerText = "Debes aceptar el micrófono.";
+                    return;
+                }
+            }
+            try { recognition.start(); } catch (e) { recognition.stop(); }
+        });
+
+        // --- PUNTAJE ---
+        function calculateScore(target, spoken) {
+            resultPanel.classList.remove('hidden');
+            const s1 = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const s2 = spoken.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+            if (s1 === s2) { showResult(100, "¡PERFECTO! 🎉", "bg-green-500"); return; }
+
+            const distance = levenshtein(s1, s2);
+            const maxLength = Math.max(s1.length, s2.length);
+            const accuracy = Math.round(((maxLength - distance) / maxLength) * 100);
+
+            let msg = accuracy >= 80 ? "¡Excelente! 👍" : (accuracy >= 50 ? "Vas bien." : "Inténtalo de nuevo.");
+            let color = accuracy >= 80 ? "bg-green-500" : (accuracy >= 50 ? "bg-yellow-500" : "bg-red-500");
+            showResult(accuracy, msg, color);
+        }
+
+        function showResult(percentage, message, colorClass) {
+            scoreText.innerText = percentage + "%";
+            scoreBar.style.width = "0%";
+            scoreBar.className = `shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-1000 w-0 ${colorClass}`;
+            feedbackMsg.innerText = message;
+            setTimeout(() => { scoreBar.style.width = percentage + "%"; }, 100);
+        }
+
+        function levenshtein(a, b) {
+            const matrix = [];
+            for(let i=0; i<=b.length; i++) matrix[i] = [i];
+            for(let j=0; j<=a.length; j++) matrix[0][j] = j;
+            for(let i=1; i<=b.length; i++){
+                for(let j=1; j<=a.length; j++){
+                    if(b.charAt(i-1) == a.charAt(j-1)) matrix[i][j] = matrix[i-1][j-1];
+                    else matrix[i][j] = Math.min(matrix[i-1][j-1]+1, matrix[i][j-1]+1, matrix[i-1][j]+1);
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+    </script>
+</body>
+</html>
