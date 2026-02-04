@@ -1,26 +1,25 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Lista de modelos para probar (Orden de prioridad)
+// Si el primero falla, intenta el segundo, etc.
+const MODELS_TO_TRY = [
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-latest", 
+  "gemini-1.5-flash-001",
+  "gemini-pro"
+];
+
 export default async function handler(req, res) {
-  // 1. Verificamos que sea una petición POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // 2. Obtenemos el texto que envió el frontend
     const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text is required' });
 
-    if (!text) {
-      return res.status(400).json({ error: 'Text is required' });
-    }
-
-    // 3. Conectamos con Gemini usando la variable de entorno (segura)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     
-    // Configuramos el modelo (puedes cambiarlo si quieres)
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    // 4. El Prompt para la IA
     const prompt = `
       Analiza la palabra/frase: "${text}".
       Responde SOLO un JSON con este formato exacto (sin bloques de código, solo el json raw):
@@ -31,18 +30,42 @@ export default async function handler(req, res) {
       }
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    
-    // Limpieza básica por si la IA manda markdown
-    let cleanText = response.text().replace(/```json|```/g, '').trim();
-    const jsonResponse = JSON.parse(cleanText);
+    // --- LÓGICA DE INTENTOS (RETRY) ---
+    let jsonResponse = null;
+    let lastError = null;
 
-    // 5. Devolvemos la respuesta al frontend
+    for (const modelName of MODELS_TO_TRY) {
+      try {
+        console.log(`Intentando conectar con modelo: ${modelName}...`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        
+        // Limpiamos la respuesta
+        let cleanText = response.text().replace(/```json|```/g, '').trim();
+        jsonResponse = JSON.parse(cleanText);
+        
+        // Si llegamos aquí, ¡funciona! Rompemos el ciclo
+        break; 
+      } catch (error) {
+        console.warn(`Falló el modelo ${modelName}:`, error.message);
+        lastError = error;
+        // Continuamos al siguiente modelo en la lista...
+      }
+    }
+
+    if (!jsonResponse) {
+      throw lastError || new Error("Ningún modelo respondió correctamente.");
+    }
+
     res.status(200).json(jsonResponse);
 
   } catch (error) {
-    console.error("Error en el backend:", error);
-    res.status(500).json({ error: 'Error processing request' });
+    console.error("Error fatal en backend:", error);
+    // Le enviamos el detalle del error para que sepas qué pasó
+    res.status(500).json({ 
+        error: 'Error processing request', 
+        details: error.message 
+    });
   }
 }
