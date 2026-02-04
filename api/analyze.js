@@ -1,12 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Lista de modelos para probar (Orden de prioridad)
-// Si el primero falla, intenta el segundo, etc.
+// LISTA ACTUALIZADA (Basada en tu JSON de 2026)
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash",
-  "gemini-1.5-flash-latest", 
-  "gemini-1.5-flash-001",
-  "gemini-pro"
+  "gemini-2.5-flash",      // El modelo estándar actual
+  "gemini-2.0-flash",      // Versión anterior estable
+  "gemini-flash-latest",   // Alias que siempre apunta al más nuevo
+  "gemini-1.5-flash-latest" // Por si acaso queda algún soporte legacy
 ];
 
 export default async function handler(req, res) {
@@ -18,54 +17,61 @@ export default async function handler(req, res) {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'Text is required' });
 
+    // Verificamos API Key
+    if (!process.env.GEMINI_API_KEY) {
+       throw new Error("Falta la GEMINI_API_KEY en Vercel");
+    }
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     
     const prompt = `
       Analiza la palabra/frase: "${text}".
-      Responde SOLO un JSON con este formato exacto (sin bloques de código, solo el json raw):
+      Responde SOLO un JSON con este formato exacto (sin bloques de código markdown, solo el json plano):
       {
           "ipa": "IPA standard",
           "spanish_sound": "pronunciación figurada (ej: chiis)",
-          "tip": "Un consejo corto y práctico para pronunciarlo bien en español. Ejemplo: 'Pon la boca como diciendo O pero di A'"
+          "tip": "Un consejo corto y práctico para pronunciarlo bien en español."
       }
     `;
 
-    // --- LÓGICA DE INTENTOS (RETRY) ---
     let jsonResponse = null;
     let lastError = null;
 
+    // Intentamos conectar con los modelos disponibles
     for (const modelName of MODELS_TO_TRY) {
       try {
-        console.log(`Intentando conectar con modelo: ${modelName}...`);
+        console.log(`Intentando modelo: ${modelName}...`);
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(prompt);
         const response = await result.response;
         
-        // Limpiamos la respuesta
+        // Limpiar respuesta
         let cleanText = response.text().replace(/```json|```/g, '').trim();
-        jsonResponse = JSON.parse(cleanText);
         
-        // Si llegamos aquí, ¡funciona! Rompemos el ciclo
+        // Extracción segura de JSON
+        const firstBracket = cleanText.indexOf('{');
+        const lastBracket = cleanText.lastIndexOf('}');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+            cleanText = cleanText.substring(firstBracket, lastBracket + 1);
+        }
+
+        jsonResponse = JSON.parse(cleanText);
+        console.log(`¡Éxito con ${modelName}!`);
         break; 
       } catch (error) {
-        console.warn(`Falló el modelo ${modelName}:`, error.message);
+        console.warn(`Falló ${modelName}: ${error.message}`);
         lastError = error;
-        // Continuamos al siguiente modelo en la lista...
       }
     }
 
     if (!jsonResponse) {
-      throw lastError || new Error("Ningún modelo respondió correctamente.");
+      throw new Error(`Todos los modelos fallaron. Revisa los logs.`);
     }
 
     res.status(200).json(jsonResponse);
 
   } catch (error) {
-    console.error("Error fatal en backend:", error);
-    // Le enviamos el detalle del error para que sepas qué pasó
-    res.status(500).json({ 
-        error: 'Error processing request', 
-        details: error.message 
-    });
+    console.error("Error FATAL en backend:", error);
+    res.status(500).json({ error: error.message || 'Error interno del servidor' });
   }
 }
