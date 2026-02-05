@@ -226,42 +226,77 @@
             }
         }
 
-        // --- 3. SPEECH RECOGNITION & LOGIC ---
+        // --- 3. SPEECH RECOGNITION CORREGIDO ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recognition = new SpeechRecognition();
+        
         recognition.lang = 'en-US';
         recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        // Variable bandera para controlar el estado
+        let gotResult = false;
 
         els.btnRecord.addEventListener('click', async () => {
             if (!audioContext) await initAudio();
-            
             if (audioContext.state === 'suspended') audioContext.resume();
 
             try {
                 recognition.start();
-                isRecording = true;
-                drawVisualizer(); // Iniciar animación
-                els.btnRecord.classList.add('bg-red-600', 'animate-pulse');
-                els.statusText.innerText = "Escuchando...";
-                els.resultPanel.classList.add('hidden');
             } catch (e) {
-                console.log("Ya estaba activo o error:", e);
+                console.log("Reinicio forzado del micro");
+                recognition.stop();
             }
         });
 
+        recognition.onstart = () => {
+            isRecording = true;
+            gotResult = false; // Reseteamos la bandera al empezar
+            drawVisualizer(); 
+            
+            // UI visual de "Grabando"
+            els.btnRecord.classList.add('bg-red-600', 'animate-pulse', 'scale-110');
+            els.statusText.innerText = "Escuchando... ¡Habla!";
+            els.statusText.classList.add('text-blue-300', 'font-bold');
+            els.resultPanel.classList.add('hidden');
+        };
+
         recognition.onend = () => {
             isRecording = false;
-            els.btnRecord.classList.remove('bg-red-600', 'animate-pulse');
-            els.statusText.innerText = "Procesando...";
+            els.btnRecord.classList.remove('bg-red-600', 'animate-pulse', 'scale-110');
+            els.statusText.classList.remove('text-blue-300', 'font-bold');
+
+            // LÓGICA CRÍTICA:
+            // Solo ponemos "Procesando" si NO tenemos resultado todavía y tampoco error.
+            // Si el micro se apagó y no hubo resultado (silencio), avisamos al usuario.
+            if (!gotResult) {
+                els.statusText.innerText = "No te escuché bien. Toca para intentar de nuevo.";
+            } else {
+                // Si ya tuvimos resultado, el texto lo maneja la función calculateResult
+                 els.statusText.innerText = "Toca para grabar de nuevo";
+            }
         };
 
         recognition.onresult = (event) => {
+            gotResult = true; // ¡Marcamos que sí escuchamos algo!
+            
             const spoken = event.results[0][0].transcript;
             const target = els.userText.value;
+            
+            els.statusText.innerText = "Procesando..."; // Feedback inmediato
             calculateResult(target, spoken);
-            els.statusText.innerText = "Toca para grabar de nuevo";
         };
 
+        recognition.onerror = (event) => {
+            isRecording = false;
+            // Evitamos que se quede pegado si hay error (ej: no-speech)
+            if(event.error === 'no-speech') {
+                els.statusText.innerText = "Silencio detectado. Intenta de nuevo.";
+            } else {
+                els.statusText.innerText = "Error: " + event.error;
+            }
+            els.btnRecord.classList.remove('bg-red-600', 'animate-pulse');
+        };
         // --- 4. COMPARADOR VISUAL (DIFF) ---
         function calculateResult(target, spoken) {
             els.resultPanel.classList.remove('hidden');
