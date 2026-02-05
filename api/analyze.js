@@ -2,10 +2,12 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // MEJORA 1: Usamos modelos estables y probados.
 // 'gemini-1.5-flash' es actualmente el más rápido y eficiente para tareas simples.
+// LISTA ACTUALIZADA (Basada en tu JSON de 2026)
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash",
-  "gemini-1.5-pro", 
-  "gemini-1.0-pro"
+  "gemini-2.5-flash",      // El modelo estándar actual
+  "gemini-2.0-flash",      // Versión anterior estable
+  "gemini-flash-latest",   // Alias que siempre apunta al más nuevo
+  "gemini-1.5-flash-latest" // Por si acaso queda algún soporte legacy
 ];
 
 export default async function handler(req, res) {
