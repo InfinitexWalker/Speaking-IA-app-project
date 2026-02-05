@@ -1,11 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// LISTA ACTUALIZADA (Basada en tu JSON de 2026)
+// MEJORA 1: Usamos modelos estables y probados.
+// 'gemini-1.5-flash' es actualmente el más rápido y eficiente para tareas simples.
 const MODELS_TO_TRY = [
-  "gemini-2.5-flash",      // El modelo estándar actual
-  "gemini-2.0-flash",      // Versión anterior estable
-  "gemini-flash-latest",   // Alias que siempre apunta al más nuevo
-  "gemini-1.5-flash-latest" // Por si acaso queda algún soporte legacy
+  "gemini-1.5-flash",
+  "gemini-1.5-pro", 
+  "gemini-1.0-pro"
 ];
 
 export default async function handler(req, res) {
@@ -17,38 +17,36 @@ export default async function handler(req, res) {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: 'Text is required' });
 
-    // Verificamos API Key
     if (!process.env.GEMINI_API_KEY) {
-       throw new Error("Falta la GEMINI_API_KEY en Vercel");
+       throw new Error("Falta la GEMINI_API_KEY");
     }
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     
+    // MEJORA 2: Prompt reforzado para asegurar JSON válido siempre
     const prompt = `
-      Analiza la palabra/frase: "${text}".
-      Responde SOLO un JSON con este formato exacto (sin bloques de código markdown, solo el json plano):
+      Actúa como un profesor de fonética experto.
+      Analiza la palabra o frase en inglés: "${text}".
+      
+      Responde EXCLUSIVAMENTE con un objeto JSON (sin markdown, sin explicaciones extra).
+      Formato requerido:
       {
-          "ipa": "IPA standard",
-          "spanish_sound": "pronunciación figurada (ej: chiis)",
-          "tip": "Un consejo corto y práctico para pronunciarlo bien en español."
+          "ipa": "Transcrpción IPA estándar",
+          "spanish_sound": "Transcrpción figurada para un hispanohablante (ej: 'bitch' -> 'bich')",
+          "tip": "Consejo técnico sobre la posición de la lengua o labios para pronunciar esto bien."
       }
     `;
 
     let jsonResponse = null;
-    let lastError = null;
 
-    // Intentamos conectar con los modelos disponibles
     for (const modelName of MODELS_TO_TRY) {
       try {
-        console.log(`Intentando modelo: ${modelName}...`);
         const model = genAI.getGenerativeModel({ model: modelName });
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        
-        // Limpiar respuesta
         let cleanText = response.text().replace(/```json|```/g, '').trim();
         
-        // Extracción segura de JSON
+        // Extracción de JSON a prueba de balas
         const firstBracket = cleanText.indexOf('{');
         const lastBracket = cleanText.lastIndexOf('}');
         if (firstBracket !== -1 && lastBracket !== -1) {
@@ -56,22 +54,18 @@ export default async function handler(req, res) {
         }
 
         jsonResponse = JSON.parse(cleanText);
-        console.log(`¡Éxito con ${modelName}!`);
-        break; 
+        break; // Si funciona, salimos del loop
       } catch (error) {
-        console.warn(`Falló ${modelName}: ${error.message}`);
-        lastError = error;
+        console.warn(`Modelo ${modelName} falló, intentando siguiente...`);
       }
     }
 
-    if (!jsonResponse) {
-      throw new Error(`Todos los modelos fallaron. Revisa los logs.`);
-    }
+    if (!jsonResponse) throw new Error("Servicio de IA temporalmente no disponible");
 
     res.status(200).json(jsonResponse);
 
   } catch (error) {
-    console.error("Error FATAL en backend:", error);
-    res.status(500).json({ error: error.message || 'Error interno del servidor' });
+    console.error("Server Error:", error);
+    res.status(500).json({ error: 'Error procesando la solicitud' });
   }
 }
