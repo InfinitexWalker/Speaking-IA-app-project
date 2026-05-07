@@ -405,47 +405,32 @@
 
 
         // ── Lógica del Visualizador de Audio ─────────────────────────────────────
-let audioContext, analyser, visualizerId;
-let visualizerStream = null;
+// ── Lógica del Visualizador de Audio (CORREGIDA) ─────────────────────
+        let visualizerInterval;
 
-async function startVisualizer() {
-    try {
-        visualizerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaStreamSource(visualizerStream);
-        source.connect(analyser);
-        analyser.fftSize = 64; // Tamaño de muestra bajo para rendimiento
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        const bars = document.querySelectorAll('.vis-bar');
-        
-        function draw() {
-            visualizerId = requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
+        function startVisualizer() {
+            // Simulamos el movimiento de las ondas matemáticas para NO bloquear el micrófono real
+            // Así dejamos el hardware 100% libre para el SpeechRecognition (como hace Google)
+            const bars = document.querySelectorAll('.vis-bar');
             
-            bars.forEach((bar, index) => {
-                // Tomamos frecuencias diferentes para cada barra para un efecto realista
-                const value = dataArray[index] || 0; 
-                // Mapeamos el valor (0-255) a una altura en píxeles (ej. 8px min, 40px max)
-                const height = Math.max(8, (value / 255) * 40); 
-                bar.style.height = `${height}px`;
+            visualizerInterval = setInterval(() => {
+                bars.forEach(bar => {
+                    // Genera una altura aleatoria fluida entre 8px y 40px
+                    const height = Math.floor(Math.random() * 32) + 8; 
+                    bar.style.height = `${height}px`;
+                });
+            }, 100); // Se actualiza cada 100ms para verse natural
+        }
+
+        function stopVisualizer() {
+            // Detenemos la simulación
+            clearInterval(visualizerInterval);
+            
+            // Regresamos las barras a su estado original
+            document.querySelectorAll('.vis-bar').forEach(bar => {
+                bar.style.height = '8px';
             });
         }
-        draw();
-    } catch (err) {
-        console.warn("Visualizador: No se pudo capturar audio para las ondas.", err);
-    }
-}
-
-function stopVisualizer() {
-    if (visualizerId) cancelAnimationFrame(visualizerId);
-    if (audioContext && audioContext.state !== 'closed') audioContext.close();
-    if (visualizerStream) visualizerStream.getTracks().forEach(t => t.stop());
-    // Regresar barras a su estado original
-    document.querySelectorAll('.vis-bar').forEach(bar => bar.style.height = '8px');
-}
 
         // ── Mapeo de errores a mensajes amigables ─────────────────────────────────
 
