@@ -1,56 +1,72 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Asegúrate de que no haya nada después de los corchetes en esta línea
 // analyze.js
+const MODELS_TO_TRY = [
+  "gemini-2.5-flash",         // 2da opción: Muy estable y barato
+  "gemini-1.5-flash"               // 3ra opción: Respaldo
+];
+
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  const { text } = req.body;
-
-  if (!text) return res.status(400).json({ error: 'Text is required' });
-
-  // Modelos gratuitos optimizados para lógica y extracción de datos
-  const ANALYZE_MODELS = [
-    "openai/gpt-oss-20b:free",          // Prioridad: Muy estable para JSON
-    "liquid/lfm2.5-1.2b-thinking:free", // Respaldo: Especializado en razonamiento
-    "google/gemma-2-9b-it:free"         // Respaldo final
-  ];
-
-  let lastError = null;
-
-  for (const model of ANALYZE_MODELS) {
-    try {
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "http://localhost:3000",
-          "X-Title": "Speaking Pro Coach"
-        },
-        body: JSON.stringify({
-          "model": model,
-          "messages": [
-            {
-              "role": "system",
-              "content": "Eres un experto en fonética inglesa. Responde únicamente con este formato JSON: {\"ipa\": \"...\", \"spanish_sound\": \"...\", \"tip\": \"...\"}"
-            },
-            { "role": "user", "content": `Analiza: "${text}"` }
-          ],
-          "response_format": { "type": "json_object" }
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.choices?.[0]?.message?.content) {
-        const content = data.choices[0].message.content;
-        return res.status(200).json(JSON.parse(content));
-      }
-      lastError = data.error?.message || "Error en el modelo";
-    } catch (error) {
-      lastError = error.message;
-      continue; 
-    }
+// ... (El resto de tu código de analyze.js se queda exactamente igual)
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  res.status(500).json({ error: `Fallo en todos los modelos: ${lastError}` });
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'Text is required' });
+
+    if (!process.env.GEMINI_API_KEY) {
+       throw new Error("Falta la GEMINI_API_KEY");
+    }
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    
+    // MEJORA 2: Prompt reforzado para asegurar JSON válido siempre
+    const prompt = `
+      Actúa como un profesor de fonética experto.
+      Analiza la palabra o frase en inglés: "${text}".
+      
+      Responde EXCLUSIVAMENTE con un objeto JSON (sin markdown, sin explicaciones extra).
+      Formato requerido:
+      {
+          "ipa": "Transcrpción IPA estándar",
+          "spanish_sound": "Transcrpción figurada para un hispanohablante (ej: 'bitch' -> 'bich')",
+          "tip": "Consejo técnico sobre la posición de la lengua o labios para pronunciar esto bien."
+      }
+    `;
+
+    let jsonResponse = null;
+
+    for (const modelName of MODELS_TO_TRY) {
+      try {
+        const model = genAI.getGenerativeModel({ model: modelName });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        let cleanText = response.text().replace(/```json|```/g, '').trim();
+        
+        // Extracción de JSON a prueba de balas
+        const firstBracket = cleanText.indexOf('{');
+        const lastBracket = cleanText.lastIndexOf('}');
+        if (firstBracket !== -1 && lastBracket !== -1) {
+            cleanText = cleanText.substring(firstBracket, lastBracket + 1);
+        }
+
+        jsonResponse = JSON.parse(cleanText);
+        break; // Si funciona, salimos del loop
+      } catch (error) {
+        console.warn(`Modelo ${modelName} falló, intentando siguiente...`);
+      }
+    }
+
+    if (!jsonResponse) throw new Error("Servicio de IA temporalmente no disponible");
+
+    res.status(200).json(jsonResponse);
+
+  } catch (error) {
+    console.error("Server Error:", error);
+    res.status(500).json({ error: 'Error procesando la solicitud' });
+  }
 }

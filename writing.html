@@ -321,14 +321,18 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
         // DIAGNÓSTICO COMPLETO (COLUMNA 3)
         const SYSTEM_PROMPT = `
         Analyze the following English text.
-        CRITICAL RULE: DO NOT put stylistic suggestions into "errors_to_practice". ONLY put HARD grammar errors.
+        CRITICAL RULES:
+        1. DO NOT put stylistic suggestions into "errors_to_practice". ONLY put HARD grammar errors.
+        2. Accurately judge the CEFR level. Pay close attention to vocabulary. If the text uses phrasal verbs (e.g. "get along") or advanced adjectives (e.g. "delighted"), rate it as B1 or higher. Do not default to A1/A2 just because the text is short.
+        
         OUTPUT STRICTLY JSON:
         {
-            "cefr_level": "A1/A2/B1/B2/C1",
+            "cefr_level": "A1/A2/B1/B2/C1/C2",
             "better_version": "The full text rewritten perfectly.",
             "errors_to_practice": [{"mistake": "exact wrong phrase", "correction": "how it should be written", "rule": "short rule explained"}]
         }
         `;
+
 
         async function analyzeText() {
             const text = writingArea.value.trim();
