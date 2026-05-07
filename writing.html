@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaking Pro | Writing Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+        
+        body { 
+            font-family: 'Nunito', sans-serif; 
+            background-color: #0f172a; 
+            color: white; 
+            overflow-x: hidden; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .cefr-badge { font-weight: 900; padding: 6px 16px; border-radius: 999px; }
+        
+        /* Ocultar barra de scroll para paneles limpios */
+        .no-scrollbars::-webkit-scrollbar { display: none; }
+        .no-scrollbars { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col p-4 md:p-6 mx-auto relative w-full max-w-7xl">
+
+    <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 px-2">
+        <div>
+            <a href="index.html" class="text-slate-400 hover:text-white transition flex items-center gap-2 text-sm font-bold mb-2">
+                <i class="fas fa-arrow-left"></i> Volver al menú
+            </a>
+            <h1 class="text-2xl md:text-3xl font-black text-white flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xl border-2 border-emerald-500/30">
+                    <i class="fas fa-pen-nib"></i>
+                </div>
+                Writing Studio
+            </h1>
+        </div>
+
+        <div class="flex items-center gap-2 bg-slate-800 border-2 border-slate-700 rounded-full px-4 py-2 w-full md:w-auto">
+            <i class="fas fa-language text-slate-400"></i>
+            <input type="text" id="quickDict" placeholder="Traducir palabra..." class="bg-transparent border-none outline-none text-sm text-white w-full md:w-48 placeholder-slate-500 font-semibold" onkeypress="handleTranslate(event)">
+            <span id="quickDictResult" class="text-sm text-emerald-400 font-bold hidden px-2"></span>
+        </div>
+    </header>
+
+<div class="flex flex-col lg:flex-row gap-6 flex-1 lg:h-[800px]">
+        
+        <div class="order-1 lg:order-2 lg:w-2/4 flex flex-col gap-4 relative min-h-[350px] lg:h-full">
+            <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl flex flex-col relative flex-1 overflow-hidden">
+                <textarea id="writingArea" class="w-full h-full min-h-[200px] lg:min-h-[150px] overflow-y-auto bg-transparent p-6 outline-none resize-none text-white placeholder-slate-500 leading-relaxed text-lg font-medium" placeholder="Empieza a redactar tu texto aquí..."></textarea>
+                
+                <div class="p-4 border-t-2 border-slate-700 bg-slate-800 flex justify-between items-center sticky bottom-0 z-10 rounded-b-3xl">
+                    <span id="wordCount" class="text-sm text-slate-400 font-bold bg-slate-700 px-3 py-1 rounded-xl">0 palabras</span>
+                    
+                    <button id="btnAnalyze" onclick="analyzeText()" class="bg-emerald-500 text-white px-6 py-2.5 rounded-2xl font-black uppercase tracking-wide border-2 border-emerald-600 shadow-[0_4px_0_0_#059669] active:shadow-none active:translate-y-1 transition-all flex items-center gap-2">
+                        <i class="fas fa-check-double"></i> Evaluar
+                    </button>
+                </div>
+            </div>
+            <p id="systemMessage" class="text-sm font-bold text-red-400 hidden absolute -bottom-6 left-0 w-full text-center"></p>
+        </div>
+
+        <div class="order-2 lg:order-1 lg:w-1/4 bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 flex flex-col overflow-y-auto no-scrollbars max-h-[350px] lg:max-h-none lg:h-full">
+            <h2 class="text-sm font-extrabold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 shrink-0">
+                <i class="fas fa-bolt text-yellow-400"></i> Radar
+            </h2>
+            
+            <div id="liveWaiting" class="flex-1 flex flex-col justify-center items-center text-slate-500 opacity-60 text-center py-4">
+                <div class="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center mb-4 border-2 border-slate-600">
+                    <i class="fas fa-magic text-2xl text-slate-400"></i>
+                </div>
+                <p class="text-sm font-bold">Escribe y haz una pausa.</p>
+                <p class="text-xs font-semibold mt-1">Tu frase se analizará aquí.</p>
+            </div>
+
+            <div id="liveLoading" class="hidden flex-1 flex justify-center items-center py-8">
+                <i class="fas fa-circle-notch fa-spin text-emerald-500 text-3xl"></i>
+            </div>
+
+            <div id="liveContent" class="hidden space-y-5 pb-2">
+                <div id="liveStatusBox" class="p-4 rounded-2xl bg-slate-700 border-2 border-slate-600">
+                    <p class="text-xs text-slate-400 uppercase font-extrabold mb-1">Última frase:</p>
+                    <p id="liveOriginalText" class="text-base text-white font-medium mb-2">"..."</p>
+                    <div id="liveCorrectionAlert" class="hidden text-sm text-red-400 mt-3 pt-3 border-t-2 border-slate-600">
+                        <span class="font-bold"><i class="fas fa-exclamation-triangle"></i> Intenta así:</span><br>
+                        <span id="liveCorrectionText" class="text-emerald-400 font-bold mt-1 block">...</span>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-xs text-emerald-400 uppercase font-extrabold tracking-widest mb-3"><i class="fas fa-arrow-up"></i> Mejorar vocabulario</p>
+                    <div class="space-y-3">
+                        <div class="bg-slate-700 border-2 border-slate-600 p-3 rounded-2xl flex flex-col gap-2">
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-1 rounded-lg w-max font-bold uppercase tracking-wide">A2 Básico</span>
+                            <span id="varA2" class="text-sm text-white font-medium">...</span>
+                        </div>
+                        <div class="bg-indigo-900/40 border-2 border-indigo-500/30 p-3 rounded-2xl flex flex-col gap-2">
+                            <span class="text-[10px] bg-indigo-500 text-white px-2 py-1 rounded-lg w-max font-bold uppercase tracking-wide">B1/B2 Intermedio</span>
+                            <span id="varB1" class="text-sm text-indigo-100 font-medium">...</span>
+                        </div>
+                        <div class="bg-emerald-900/40 border-2 border-emerald-500/40 p-3 rounded-2xl flex flex-col gap-2">
+                            <span class="text-[10px] bg-emerald-500 text-white px-2 py-1 rounded-lg w-max font-bold uppercase tracking-wide">C1 Nativo</span>
+                            <span id="varC1" class="text-sm text-emerald-100 font-medium">...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="order-3 lg:order-3 lg:w-1/4 bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 flex flex-col min-h-[300px] lg:h-full overflow-y-auto no-scrollbars">
+            <div id="resultsPanel" class="hidden h-full">
+                <div class="flex flex-col mb-6 pb-6 border-b-2 border-slate-700">
+                    <p class="text-sm text-slate-400 uppercase tracking-widest font-extrabold mb-3">Nivel Detectado</p>
+                    <div class="flex">
+                        <span id="cefrLevel" class="cefr-badge bg-emerald-500 text-white text-xl">--</span>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <p class="text-xs text-emerald-400 uppercase tracking-widest font-extrabold mb-3">Versión Perfecta</p>
+                    <div class="bg-slate-700 border-2 border-slate-600 p-4 rounded-2xl text-slate-200 text-sm font-medium leading-relaxed" id="betterVersion">--</div>
+                </div>
+
+                <div>
+                    <p class="text-xs text-orange-400 uppercase tracking-widest font-extrabold mb-3 flex items-center gap-2">
+                        <i class="fas fa-dumbbell"></i> Errores a entrenar
+                    </p>
+                    <div id="errorList" class="space-y-3"></div>
+                </div>
+            </div>
+            
+            <div id="emptyState" class="flex-1 flex flex-col items-center justify-center text-center text-slate-400 py-8">
+                <div class="w-20 h-20 bg-slate-700 rounded-full flex items-center justify-center mb-4 border-4 border-slate-600">
+                    <i class="fas fa-clipboard-check text-4xl text-slate-500"></i>
+                </div>
+                <p class="text-base font-bold text-white mb-2">Lienzo en blanco</p>
+                <p class="text-sm font-semibold">Escribe tu texto arriba y presiona "Evaluar" cuando termines.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const writingArea = document.getElementById('writingArea');
+        const wordCountDisplay = document.getElementById('wordCount');
+        
+        // Elementos Columna 1
+        const liveWaiting = document.getElementById('liveWaiting');
+        const liveLoading = document.getElementById('liveLoading');
+        const liveContent = document.getElementById('liveContent');
+        const liveOriginalText = document.getElementById('liveOriginalText');
+        const liveCorrectionAlert = document.getElementById('liveCorrectionAlert');
+        const liveCorrectionText = document.getElementById('liveCorrectionText');
+        const varA2 = document.getElementById('varA2');
+        const varB1 = document.getElementById('varB1');
+        const varC1 = document.getElementById('varC1');
+        const liveStatusBox = document.getElementById('liveStatusBox');
+
+        writingArea.addEventListener('input', () => {
+            // Contar palabras
+            const words = writingArea.value.trim().split(/\s+/).filter(w => w.length > 0);
+            wordCountDisplay.innerText = `${words.length} palabras`;
+            
+            // Magia para que el cuadro crezca dinámicamente
+            writingArea.style.height = 'auto'; 
+            writingArea.style.height = writingArea.scrollHeight + 'px'; 
+        });
+
+// SUGERENCIAS EN TIEMPO REAL (COLUMNA 1)
+        let typingTimer;
+        let lastAnalyzedChunk = "";  
+        let currentSuggestions = []; 
+        let fetchController = null; // <-- 1. NUEVA VARIABLE PARA CONTROLAR LA PETICIÓN
+
+        writingArea.addEventListener('input', () => {
+            // Contar palabras
+            const words = writingArea.value.trim().split(/\s+/).filter(w => w.length > 0);
+            wordCountDisplay.innerText = `${words.length} palabras`;
+            
+            // Magia para que el cuadro crezca dinámicamente
+            writingArea.style.height = 'auto'; 
+            writingArea.style.height = writingArea.scrollHeight + 'px'; 
+
+            // DISPARAR EL RADAR AQUÍ (Es más seguro que keyup)
+            clearTimeout(typingTimer);
+            if (writingArea.value.trim().length > 3) {
+                typingTimer = setTimeout(getLiveSuggestion, 700);
+            }
+        });
+
+        async function getLiveSuggestion() {
+            const text = writingArea.value.trim();
+            
+            const chunks = text.split(/[\n.!?,;]+/).filter(c => c.trim().length > 0);
+            if (chunks.length === 0) return;
+            let lastChunk = chunks[chunks.length - 1].trim();
+
+            const words = lastChunk.split(/\s+/);
+            if (words.length > 12) {
+                lastChunk = words.slice(-12).join(' ');
+            }
+
+            if (lastChunk.length < 3) return;
+
+            if (lastChunk.toLowerCase() === lastAnalyzedChunk.toLowerCase()) return;
+
+            const cleanChunk = lastChunk.toLowerCase().replace(/[^\w\s]/gi, '');
+            const isAdoptingSuggestion = currentSuggestions.some(sugg => 
+                sugg && sugg.toLowerCase().replace(/[^\w\s]/gi, '') === cleanChunk
+            );
+
+            if (isAdoptingSuggestion) {
+                liveStatusBox.className = "p-4 rounded-2xl bg-slate-700 border-2 border-slate-600";
+                liveCorrectionAlert.classList.add('hidden');
+                liveOriginalText.innerText = (words.length > 12 ? `"...${lastChunk}"` : `"${lastChunk}"`);
+                lastAnalyzedChunk = lastChunk; 
+                return; 
+            }
+
+            lastAnalyzedChunk = lastChunk;
+
+            // <-- 2. CANCELAMOS LA PETICIÓN ANTERIOR SI AÚN ESTÁ EN PROCESO
+            if (fetchController) {
+                fetchController.abort();
+            }
+            fetchController = new AbortController();
+            const signal = fetchController.signal;
+
+            try {
+                liveWaiting.classList.add('hidden');
+                liveContent.classList.add('hidden');
+                liveLoading.classList.remove('hidden');
+
+const prompt = `Analyze this exact phrase: "${lastChunk}". 
+CRITICAL INSTRUCTION: Output ONLY a valid JSON object. No markdown.
+RULE: You MUST provide distinct, level-appropriate synonyms or alternative expressions. DO NOT just repeat the original phrase.
+{
+    "has_error": true/false,
+    "correction": "The natural fix, or an empty string \\"\\" if no error",
+    "a2": "A simple alternative",
+    "b1": "An intermediate alternative",
+    "c1": "An advanced alternative"
+}`;
+
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: signal, // <-- 3. CONECTAMOS LA SEÑAL DE CANCELACIÓN AQUÍ
+                    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+                });
+                
+                if (!res.ok) throw new Error("API Limit");
+                const data = await res.json();
+                
+                let rawText = data.candidates[0].content.parts[0].text;
+                const jsonStr = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);
+                const aiResponse = JSON.parse(jsonStr);
+
+                currentSuggestions = [
+                    aiResponse.a2, 
+                    aiResponse.b1, 
+                    aiResponse.c1, 
+                    aiResponse.correction
+                ];
+
+                liveLoading.classList.add('hidden');
+                liveContent.classList.remove('hidden');
+
+                liveOriginalText.innerText = (words.length > 12 ? `"...${lastChunk}"` : `"${lastChunk}"`);
+                varA2.innerText = aiResponse.a2;
+                varB1.innerText = aiResponse.b1;
+                varC1.innerText = aiResponse.c1;
+
+                if (aiResponse.has_error && aiResponse.correction) {
+                    liveStatusBox.className = "p-4 rounded-2xl bg-red-500/10 border-2 border-red-500/30";
+                    liveCorrectionAlert.classList.remove('hidden');
+                    liveCorrectionText.innerText = aiResponse.correction;
+                } else {
+                    liveStatusBox.className = "p-4 rounded-2xl bg-slate-700 border-2 border-slate-600";
+                    liveCorrectionAlert.classList.add('hidden');
+                }
+
+            } catch (e) { 
+                if (e.name === 'AbortError') {
+                    console.log('Petición ignorada: escribiste más rápido.');
+                    return; 
+                }
+                console.error("Error en el radar:", e); // <-- Esto nos salvará la vida si falla
+                liveLoading.classList.add('hidden');
+                liveWaiting.classList.remove('hidden');
+            }
+        }
+
+        // MINI TRADUCTOR
+        async function handleTranslate(e) {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('quickDict');
+                const result = document.getElementById('quickDictResult');
+                const word = input.value.trim();
+                if(!word) return;
+
+                result.innerText = "Traduciendo...";
+                result.classList.remove('hidden');
+
+                try {
+                    const res = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Translate this from Spanish to English. ONLY output the English text: " + word }] }] })
+                    });
+                    const data = await res.json();
+                    result.innerText = data.candidates[0].content.parts[0].text.trim();
+                    setTimeout(() => { input.value = ''; result.classList.add('hidden'); }, 6000);
+                } catch (err) { result.innerText = "Error"; }
+            }
+        }
+
+        // DIAGNÓSTICO COMPLETO (COLUMNA 3)
+        const SYSTEM_PROMPT = `
+        Analyze the following English text.
+        CRITICAL RULE: DO NOT put stylistic suggestions into "errors_to_practice". ONLY put HARD grammar errors.
+        OUTPUT STRICTLY JSON:
+        {
+            "cefr_level": "A1/A2/B1/B2/C1",
+            "better_version": "The full text rewritten perfectly.",
+            "errors_to_practice": [{"mistake": "exact wrong phrase", "correction": "how it should be written", "rule": "short rule explained"}]
+        }
+        `;
+
+        async function analyzeText() {
+            const text = writingArea.value.trim();
+            const sysMsg = document.getElementById('systemMessage');
+            sysMsg.classList.add('hidden');
+
+            if (text.length < 10) {
+                sysMsg.innerText = "Escribe un poco más para poder evaluar.";
+                sysMsg.classList.remove('hidden');
+                return;
+            }
+
+            const btn = document.getElementById('btnAnalyze');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Evaluando...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\nTEXT:\n" + text }] }] })
+                });
+
+                if (!res.ok) throw new Error("Error de red");
+
+                const data = await res.json();
+                let rawText = data.candidates[0].content.parts[0].text;
+                const jsonStr = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);
+                const aiResponse = JSON.parse(jsonStr);
+
+                document.getElementById('emptyState').classList.add('hidden');
+                document.getElementById('resultsPanel').classList.remove('hidden');
+                
+                document.getElementById('cefrLevel').innerText = aiResponse.cefr_level || "--";
+                document.getElementById('betterVersion').innerText = aiResponse.better_version || "Sin sugerencias.";
+
+                const errorList = document.getElementById('errorList');
+                if (aiResponse.errors_to_practice && aiResponse.errors_to_practice.length > 0) {
+                    // Actualizamos las tarjetas de error para que se vean sólidas y limpias
+                    errorList.innerHTML = aiResponse.errors_to_practice.map(err => `
+                        <div class="bg-slate-700 p-4 rounded-2xl border-2 border-slate-600 text-sm flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-red-400 font-bold line-through bg-red-500/10 px-2 py-0.5 rounded-md">${err.mistake}</span> 
+                                <i class="fas fa-arrow-right text-slate-400"></i> 
+                                <span class="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-md">${err.correction}</span>
+                            </div>
+                            <span class="text-slate-400 text-xs font-semibold mt-1"><i class="fas fa-info-circle"></i> ${err.rule}</span>
+                        </div>
+                    `).join('');
+                    
+                    let errorVault = JSON.parse(localStorage.getItem('speaking_pro_errors')) || [];
+                    aiResponse.errors_to_practice.forEach(err => {
+                        errorVault.push({ id: Date.now() + Math.random().toString(), type: 'writing', ...err });
+                    });
+                    localStorage.setItem('speaking_pro_errors', JSON.stringify(errorVault));
+                } else {
+                    errorList.innerHTML = `
+                    <div class="p-5 bg-emerald-500/10 border-2 border-emerald-500/30 rounded-2xl text-center">
+                        <div class="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-2 text-emerald-400 text-2xl">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <p class="text-sm text-emerald-400 font-black uppercase">¡Excelente!</p>
+                        <p class="text-sm text-emerald-300 font-semibold mt-1">Sin errores gramaticales graves.</p>
+                    </div>`;
+                }
+            } catch (error) { 
+                sysMsg.innerText = "Ocurrió un error al conectar con la IA.";
+                sysMsg.classList.remove('hidden');
+            } finally { 
+                btn.innerHTML = '<i class="fas fa-check-double"></i> Evaluar'; 
+                btn.disabled = false; 
+            }
+        }
+    </script>
+</body>
+</html>

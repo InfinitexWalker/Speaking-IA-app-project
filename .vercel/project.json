@@ -1,0 +1,16 @@
+{
+  "projectId": "prj_k5kCC6M5feyvJ0NrRAf1NUn5e0Vq",
+  "orgId": "team_BH8uHFJej7ccWjNRX8jvIOA2",
+  "projectName": "speaking-app-ia",
+  "settings": {
+    "createdAt": 1777844308587,
+    "framework": null,
+    "devCommand": null,
+    "installCommand": null,
+    "buildCommand": null,
+    "outputDirectory": null,
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "24.x"
+  }
+}

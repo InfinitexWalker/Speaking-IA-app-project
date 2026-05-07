@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaking Pro | Error Gym</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #020617; color: white; }
+        .glass-panel { background: rgba(30, 41, 59, 0.6); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .blur-text { filter: blur(5px); transition: filter 0.3s; user-select: none; }
+        .blur-text:hover { filter: blur(0px); }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col p-6 max-w-4xl mx-auto">
+
+    <header class="flex justify-between items-center mb-8 relative z-10 pt-10">
+        <div>
+            <a href="index.html" class="text-slate-400 hover:text-white transition flex items-center gap-2 text-sm mb-2">
+                <i class="fas fa-arrow-left"></i> Volver al Hub
+            </a>
+            <h1 class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-400">Error Gym</h1>
+            <p class="text-slate-400 text-sm">Escritura para errores de Writing, voz para errores de Speaking.</p>
+        </div>
+        <div>
+            <button onclick="clearGym()" class="text-xs bg-red-500/10 text-red-400 border border-red-500/20 px-4 py-2 rounded-lg hover:bg-red-500/20 transition">
+                <i class="fas fa-trash"></i> Vaciar Gym
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 relative z-10">
+        <div id="errorContainer" class="grid md:grid-cols-2 gap-4"></div>
+    </main>
+
+    <script>
+        
+        // Inicializar reconocimiento de voz
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+        if (recognition) { recognition.lang = 'en-US'; recognition.interimResults = false; }
+
+       function loadErrors() {
+            const container = document.getElementById('errorContainer');
+            let errorVault = JSON.parse(localStorage.getItem('speaking_pro_errors')) || [];
+
+            if (errorVault.length === 0) {
+                container.innerHTML = `<div class="col-span-2 glass-panel p-12 text-center rounded-2xl text-slate-400"><i class="fas fa-dumbbell text-4xl mb-4 opacity-50"></i><br>¡Tu Gym está vacío! Excelente trabajo.</div>`;
+                return;
+            }
+
+            container.innerHTML = errorVault.reverse().map(err => {
+                const isSpeaking = err.type === 'speaking';
+                const typeIcon = isSpeaking ? '<i class="fas fa-microphone text-indigo-400"></i> Speaking' : '<i class="fas fa-keyboard text-emerald-400"></i> Writing';
+                const borderColor = isSpeaking ? 'border-l-indigo-500' : 'border-l-emerald-500';
+                const reps = err.repsCompleted || 0;
+                const target = err.targetReps || 3;
+                
+                // --- MAGIA APLICADA AQUÍ ---
+                // Si es speaking, quitamos el blur. Si es writing, lo dejamos para que sea un reto recordarlo.
+                const blurClass = isSpeaking ? '' : 'blur-text cursor-help';
+                const titleAttr = isSpeaking ? '' : 'title="Respuesta correcta"';
+                
+                // Barra de progreso de las series
+                const progressHtml = `
+                    <div class="mt-2 mb-3">
+                        <div class="flex justify-between text-[10px] text-slate-400 mb-1">
+                            <span>Progreso de memoria muscular</span>
+                            <span>${reps} / ${target} Reps</span>
+                        </div>
+                        <div class="w-full bg-slate-700 rounded-full h-1.5">
+                            <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: ${(reps/target)*100}%"></div>
+                        </div>
+                    </div>
+                `;
+
+                return `
+                    <div class="glass-panel p-5 rounded-xl border-l-4 ${borderColor} flex flex-col gap-3 group relative" id="card-${err.id}">
+                        <div class="flex justify-between items-center">
+                            <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest">${typeIcon}</p>
+                            <span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-300">Set ${reps + 1}</span>
+                        </div>
+                        
+                        <p class="text-xs text-slate-400 mt-1">Error original:</p>
+                        <p class="text-red-400 text-sm line-through bg-red-500/10 p-2 rounded">${err.mistake || 'Error'}</p>
+                        
+                        <div class="mt-2" id="practice-area-${err.id}">
+                            <div class="flex justify-between items-end mb-1">
+                                <p class="text-[10px] text-slate-500">Forma correcta:</p>
+                                <button onclick="playCorrection(\`${err.correction.replace(/`/g, "'")}\`)" class="text-[10px] text-indigo-400 hover:text-white"><i class="fas fa-volume-up"></i> Escuchar</button>
+                            </div>
+                            
+                            <p class="text-emerald-300 text-sm font-medium bg-emerald-500/10 p-2 rounded border border-emerald-500/20 mb-2 ${blurClass}" ${titleAttr}>${err.correction}</p>
+                            
+                            ${progressHtml}
+
+                            ${isSpeaking ? getSpeakingInput(err) : getWritingInput(err)}
+                            
+                            <p id="msg-${err.id}" class="text-xs mt-2 hidden"></p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Helpers para inyectar el input correcto según la repetición
+        function getSpeakingInput(err) {
+            return `<button id="micBtn-${err.id}" onclick="startSpeakingTask('${err.id}', \`${err.correction.replace(/`/g, "'")}\`)" class="w-full bg-indigo-600/20 hover:bg-indigo-600/40 border border-indigo-500/50 text-indigo-300 py-2 rounded transition flex items-center justify-center gap-2">
+                        <i class="fas fa-microphone"></i> Toca para hablar
+                    </button>`;
+        }
+
+        function getWritingInput(err) {
+            return `<div class="flex gap-2">
+                        <input type="text" id="input-${err.id}" placeholder="Escríbelo correctamente..." class="flex-1 bg-slate-900 border border-slate-700 text-sm rounded px-3 py-2 outline-none focus:border-emerald-500 text-white">
+                        <button onclick="checkWritingAnswer('${err.id}', \`${err.correction.replace(/`/g, "'")}\`)" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded transition">
+                            <i class="fas fa-check"></i>
+                        </button>
+                    </div>`;
+        }
+
+        // Modificamos el success para sumar reps
+        function successFeedback(id, msgObj) {
+            msgObj.className = "text-xs mt-2 text-emerald-400 font-bold";
+            msgObj.innerHTML = "<i class='fas fa-star'></i> ¡Bien hecho! Repetición completada.";
+            
+            let errorVault = JSON.parse(localStorage.getItem('speaking_pro_errors')) || [];
+            let errorIndex = errorVault.findIndex(err => err.id === id);
+            
+            if (errorIndex !== -1) {
+                // Aseguramos que existan las propiedades
+                errorVault[errorIndex].repsCompleted = (errorVault[errorIndex].repsCompleted || 0) + 1;
+                errorVault[errorIndex].targetReps = errorVault[errorIndex].targetReps || 3;
+
+                // Si ya llegó a la meta, se elimina
+                if (errorVault[errorIndex].repsCompleted >= errorVault[errorIndex].targetReps) {
+                    msgObj.innerHTML = "<i class='fas fa-trophy'></i> ¡Perfecto! Error superado y dominado.";
+                    setTimeout(() => deleteError(id), 1500);
+                } else {
+                    // Si no, guardamos y recargamos para la siguiente serie
+                    localStorage.setItem('speaking_pro_errors', JSON.stringify(errorVault));
+                    setTimeout(() => loadErrors(), 1000);
+                }
+            }
+        }
+
+        // Tarea de ESCRITURA
+        function checkWritingAnswer(id, correctText) {
+            const input = document.getElementById(`input-${id}`).value.trim().toLowerCase();
+            const correctClean = correctText.toLowerCase().replace(/[.,!?]/g, '');
+            const msgObj = document.getElementById(`msg-${id}`);
+            msgObj.classList.remove('hidden');
+
+            if (input === correctClean || (input.length > 5 && correctClean.includes(input))) {
+                successFeedback(id, msgObj);
+            } else {
+                failFeedback(msgObj);
+            }
+        }
+// Calculadora de tolerancia estilo Duolingo
+function isCloseEnough(spoken, target) {
+    // Limpiamos signos de puntuación y pasamos a minúsculas
+    const cleanSpoken = spoken.toLowerCase().replace(/[.,!?]/g, '').trim().split(/\s+/);
+    const cleanTarget = target.toLowerCase().replace(/[.,!?]/g, '').trim().split(/\s+/);
+    
+    // Si la frase es muy cortita (1 o 2 palabras), exigimos coincidencia exacta o casi exacta
+    if (cleanTarget.length <= 2) {
+        return spoken.toLowerCase().includes(target.toLowerCase().replace(/[.,!?]/g, '').trim());
+    }
+
+    // Contamos cuántas palabras de la meta lograste pronunciar
+    let matches = 0;
+    cleanTarget.forEach(word => {
+        if (cleanSpoken.includes(word)) matches++;
+    });
+    
+    // Calculamos el porcentaje de acierto
+    const matchPercentage = matches / cleanTarget.length;
+    
+    // 70% de coincidencia es suficiente para pasar (ajusta este valor a tu gusto)
+    return matchPercentage >= 0.7; 
+}
+        // Tarea de VOZ
+        function startSpeakingTask(id, correctText) {
+    if (!recognition) return alert("Tu navegador no soporta reconocimiento de voz. Usa Chrome.");
+    
+    const btn = document.getElementById(`micBtn-${id}`);
+    const msgObj = document.getElementById(`msg-${id}`);
+    
+    btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Escuchando...`;
+    btn.classList.replace('text-indigo-300', 'text-red-400');
+    btn.classList.add('animate-pulse', 'border-red-500');
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase();
+        msgObj.classList.remove('hidden');
+
+        // Aquí aplicamos la magia de Duolingo
+        if (isCloseEnough(transcript, correctText)) {
+            successFeedback(id, msgObj);
+        } else {
+            failFeedback(msgObj, `Te escuché: "${transcript}". ¡Estuviste cerca! Intenta de nuevo.`);
+        }
+    };
+
+    recognition.onerror = () => { failFeedback(msgObj, "No te escuché bien. Intenta de nuevo."); resetMicBtn(btn); };
+    recognition.onend = () => resetMicBtn(btn);
+    
+    recognition.start();
+}
+
+        function resetMicBtn(btn) {
+            btn.innerHTML = `<i class="fas fa-microphone"></i> Toca para hablar`;
+            btn.classList.remove('animate-pulse', 'border-red-500', 'text-red-400');
+            btn.classList.add('text-indigo-300');
+        }
+
+        function failFeedback(msgObj, customMsg = "Sigue intentando. Revisa la pista.") {
+            msgObj.className = "text-xs mt-2 text-red-400";
+            msgObj.innerText = customMsg;
+        }
+
+        // Reproducir audio nativo
+        function playCorrection(text) {
+            if(window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = 'en-US';
+            window.speechSynthesis.speak(utter);
+        }
+
+        function deleteError(id) {
+            let errorVault = JSON.parse(localStorage.getItem('speaking_pro_errors')) || [];
+            errorVault = errorVault.filter(err => err.id !== id);
+            localStorage.setItem('speaking_pro_errors', JSON.stringify(errorVault));
+            loadErrors();
+        }
+
+        function clearGym() {
+            if(confirm("¿Borrar todo?")) { localStorage.removeItem('speaking_pro_errors'); loadErrors(); }
+        }
+
+        window.onload = loadErrors;
+    </script>
+</body>
+</html>

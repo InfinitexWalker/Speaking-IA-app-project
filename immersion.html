@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Speaking Pro | Práctica Conversacional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+        body { font-family: 'Nunito', sans-serif; background-color: #0f172a; color: #f8fafc; overflow: hidden; -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .msg-enter { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7), 0 4px 0 0 #b91c1c; } 70% { box-shadow: 0 0 0 14px rgba(239,68,68,0), 0 4px 0 0 #b91c1c; } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0), 0 4px 0 0 #b91c1c; } }
+        .mic-active { animation: pulse-ring 1.4s infinite; background-color: #ef4444 !important; color: white !important; border-color: #b91c1c !important; box-shadow: 0 4px 0 0 #b91c1c; }
+        .wave-bar { display: inline-block; width: 4px; height: 12px; border-radius: 2px; background: #ef4444; transform-origin: bottom; transform: scaleY(0.4); transition: transform 0.05s ease; }
+        @keyframes scoreGrow { from { width: 0%; } to { width: var(--target-w); } }
+        .score-bar-fill { animation: scoreGrow 0.8s cubic-bezier(0.16,1,0.3,1) forwards; }
+    </style>
+</head>
+<body class="flex h-screen w-full antialiased selection:bg-indigo-500 selection:text-white">
+
+    <div id="setup-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 transition-opacity duration-300 p-4">
+        <div class="w-full max-w-lg bg-slate-800 p-8 rounded-3xl border-2 border-slate-700 shadow-2xl">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/20 text-indigo-400 mb-4 border-2 border-indigo-500/30">
+                    <i class="fas fa-headphones-alt text-3xl"></i>
+                </div>
+                <h1 class="text-3xl font-black text-white">Práctica Inmersiva</h1>
+                <p class="text-slate-400 font-semibold mt-2">100% Voz. Escucha y repite el guión.</p>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 block">Tu Nivel Actual</label>
+                    <div class="flex bg-slate-700 p-1.5 rounded-xl border-2 border-slate-600">
+                        <button id="lvl-beginner" onclick="setLevel('beginner')" class="flex-1 text-sm py-2 rounded-lg text-slate-300 hover:text-white font-bold transition-all">Principiante</button>
+                        <button id="lvl-intermediate" onclick="setLevel('intermediate')" class="flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold transition-all shadow-[0_2px_0_0_#4338ca]">Intermedio</button>
+                        <button id="lvl-advanced" onclick="setLevel('advanced')" class="flex-1 text-sm py-2 rounded-lg text-slate-300 hover:text-white font-bold transition-all">Avanzado</button>
+                    </div>
+                </div>
+                <button id="startBtn" onclick="validateAndStart()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-2xl text-lg border-2 border-emerald-600 shadow-[0_6px_0_0_#059669] active:shadow-none active:translate-y-1.5 transition-all">
+                    <i class="fas fa-play mr-2"></i> Iniciar Sesión
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-layout" class="flex w-full h-full opacity-0 pointer-events-none transition-opacity duration-500 relative">
+        <aside id="sidebar" class="fixed inset-y-0 left-0 w-[85%] max-w-sm md:relative md:w-80 bg-slate-800 border-r-2 border-slate-700 flex flex-col shrink-0 z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-300">
+            <div class="h-16 flex items-center justify-between px-6 border-b-2 border-slate-700">
+                <a href="index.html" class="text-slate-400 hover:text-white"><i class="fas fa-arrow-left"></i> Volver</a>
+            </div>
+            <div class="p-5">
+                <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Voz del Entrenador</label>
+                <select id="voice-select" onchange="changeVoice(this.value)" class="w-full bg-slate-700 text-white font-semibold px-4 py-3 rounded-xl border-2 border-slate-600 outline-none"></select>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col relative bg-slate-900 w-full min-w-0">
+            <div id="messages" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 z-10 pb-[160px] md:pb-48 scroll-smooth flex flex-col items-center justify-center"></div>
+
+            <div class="absolute bottom-0 w-full p-3 md:p-6 z-20 bg-slate-900/95 backdrop-blur-md border-t-2 border-slate-800 flex flex-col items-center">
+                <div id="live-transcript" class="text-center text-slate-200 text-lg font-bold opacity-0 transition-opacity truncate px-4 pb-4"></div>
+                <div id="mic-status" class="text-center h-6 mb-4 transition-all opacity-0 flex justify-center items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-xs font-extrabold uppercase"><i class="fas fa-satellite-dish animate-pulse"></i> Escuchando</span>
+                    <div id="mic-wave" class="flex items-center gap-[3px] h-4">
+                        <span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span>
+                    </div>
+                </div>
+                <button id="micBtn" onclick="toggleMic()" class="w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-700 text-slate-300 border-4 border-slate-600 shadow-[0_6px_0_0_#1e293b] flex items-center justify-center text-3xl font-extrabold text-white transition-all z-40">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+            <button id="stop-audio-btn" onclick="stopAudio()" class="absolute top-6 right-6 z-30 hidden bg-red-500 text-white w-12 h-12 rounded-full shadow-lg border-2 border-red-600 flex items-center justify-center"><i class="fas fa-stop text-xl"></i></button>
+        </main>
+    </div>
+
+    <script>
+        let state = { level: 'intermediate', voice: null, history: [], isListening: false, currentSuggested: null, practiceStarted: false };
+
+        const PRACTICE_SYSTEM_PROMPT = `You are a conversational coach running real-world English practice scenarios.
+STT RULE: The user speaks via Speech-to-Text that misinterprets Hispanic accents. Sound it out phonetically.
+SUGGESTED RESPONSE RULE: ALWAYS include a "suggested_response" — a natural 1-2 sentence English phrase the user could realistically say next.
+OUTPUT FORMAT (JSON ONLY):
+{
+  "clarity_score": 1-10, "is_accepted": boolean, "refusal_message": "string", "error_snippet": "string or null", "correction_snippet": "string or null", "better_way": "string or null", "reply": "Your in-character response (1-3 sentences)", "translation": "Spanish translation", "hints": [], "suggested_response": "A natural English phrase the user must say next"
+}`;
+
+        function setLevel(level) {
+            state.level = level;
+            ['beginner', 'intermediate', 'advanced'].forEach(l => {
+                document.getElementById('lvl-' + l).className = l === level ? "flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold transition-all shadow-[0_2px_0_0_#4338ca]" : "flex-1 text-sm py-2 rounded-lg text-slate-300 font-bold transition-all";
+            });
+        }
+
+        const synth = window.speechSynthesis;
+        let availableVoices = [];
+        function loadVoices() {
+            availableVoices = synth.getVoices().filter(v => v.lang.startsWith('en'));
+            const select = document.getElementById('voice-select');
+            select.innerHTML = availableVoices.map((v, i) => `<option value="${i}">${v.name}</option>`).join('');
+            if (!state.voice) { state.voice = availableVoices[0]; select.value = "0"; }
+        }
+        function changeVoice(idx) { state.voice = availableVoices[idx]; }
+        if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = loadVoices;
+
+        function validateAndStart() {
+            document.getElementById('setup-overlay').classList.add('hidden');
+            document.getElementById('app-layout').classList.remove('opacity-0', 'pointer-events-none');
+            state.history = [{ role: "user", parts: [{ text: PRACTICE_SYSTEM_PROMPT + "\nLEVEL: " + state.level }] }];
+            const greeting = "Welcome to Conversational Practice! What scenario would you like to practice today?";
+            addAiSubtitle(greeting);
+            speak(greeting);
+        }
+
+        // --- WEB AUDIO API PARA ONDAS REALES ---
+        let audioContext, analyser, visualizerId, visualizerStream = null;
+        async function startVisualizer() {
+            try {
+                visualizerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(visualizerStream);
+                source.connect(analyser); analyser.fftSize = 64; 
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const bars = document.querySelectorAll('.wave-bar');
+                function draw() {
+                    visualizerId = requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+                    bars.forEach((bar, i) => bar.style.transform = `scaleY(${Math.max(0.4, ((dataArray[i]||0) / 255) * 1.8)})`);
+                }
+                draw();
+            } catch (err) {}
+        }
+        function stopVisualizer() {
+            if (visualizerId) cancelAnimationFrame(visualizerId);
+            if (audioContext && audioContext.state !== 'closed') audioContext.close();
+            if (visualizerStream) visualizerStream.getTracks().forEach(t => t.stop());
+            document.querySelectorAll('.wave-bar').forEach(bar => bar.style.transform = 'scaleY(0.4)');
+        }
+
+        function setMicUI(active) {
+            const btn = document.getElementById('micBtn'), status = document.getElementById('mic-status');
+            if (active) {
+                startVisualizer(); btn.classList.add('mic-active'); status.style.opacity = '1';
+            } else {
+                stopVisualizer(); btn.classList.remove('mic-active'); status.style.opacity = '0';
+                document.getElementById('live-transcript').style.opacity = '0';
+            }
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null, silenceTimer = null;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = !(/iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+            recognition.interimResults = true; recognition.lang = 'en-US';
+            recognition.onstart = () => { state.isListening = true; setMicUI(true); stopAudio(); document.getElementById('live-transcript').innerText = ''; };
+            recognition.onresult = (e) => {
+                let final = '', interim = '';
+                for (let i = e.resultIndex; i < e.results.length; i++) {
+                    if (e.results[i].isFinal) final += e.results[i][0].transcript;
+                    else interim += e.results[i][0].transcript;
+                }
+                const currentText = final + interim;
+                document.getElementById('live-transcript').innerText = currentText;
+                document.getElementById('live-transcript').style.opacity = '1';
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(() => { if(state.isListening) recognition.stop(); }, final ? 3200 : 5500);
+            };
+            recognition.onend = () => {
+                state.isListening = false; setMicUI(false);
+                const val = document.getElementById('live-transcript').innerText.trim();
+                if (!val) return;
+
+                if (state.practiceStarted && state.currentSuggested) {
+                    const sim = calculateSimilarity(val, state.currentSuggested);
+                    if (sim < 60) { showPronunciationRetry(sim, state.currentSuggested, val); return; }
+                    else { showPronunciationSuccess(sim); setTimeout(() => handleUserMessage(val), 1500); return; }
+                }
+                handleUserMessage(val);
+            };
+            recognition.onerror = () => { state.isListening = false; setMicUI(false); };
+        }
+
+        async function toggleMic() {
+            if (!recognition) return;
+            if (state.isListening) recognition.stop();
+            else recognition.start();
+        }
+
+        // --- LEVENSHTEIN SIMILARITY ---
+        function calculateSimilarity(str1, str2) {
+            let s1 = str1.toLowerCase().replace(/[^\w\s]|_/g, "").trim(), s2 = str2.toLowerCase().replace(/[^\w\s]|_/g, "").trim();
+            if(s1 === s2) return 100; if(!s1 || !s2) return 0;
+            let costs = [];
+            for(let i=0; i<=s1.length; i++) {
+                let lastValue = i;
+                for(let j=0; j<=s2.length; j++) {
+                    if(i==0) costs[j] = j;
+                    else if(j>0) {
+                        let newValue = costs[j-1];
+                        if(s1.charAt(i-1) != s2.charAt(j-1)) newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                        costs[j-1] = lastValue; lastValue = newValue;
+                    }
+                }
+                if(i>0) costs[s2.length] = lastValue;
+            }
+            return Math.round(((Math.max(s1.length, s2.length) - costs[s2.length]) / Math.max(s1.length, s2.length)) * 100);
+        }
+
+        const messagesContainer = document.getElementById('messages');
+        function showLoading() {
+            const id = 'loader-' + Date.now();
+            const div = document.createElement('div'); div.id = id; div.className = "msg-enter flex flex-col items-center mt-10";
+            div.innerHTML = `<i class="fas fa-brain text-indigo-400 text-4xl animate-pulse mb-2"></i><p class="text-indigo-300 font-bold uppercase tracking-widest text-sm">Procesando...</p>`;
+            messagesContainer.innerHTML = ''; messagesContainer.appendChild(div); return id;
+        }
+
+        async function handleUserMessage(text) {
+            if (!state.practiceStarted) state.practiceStarted = true;
+            const loadingId = showLoading();
+            try {
+                const payload = [...state.history, { role: "user", parts: [{ text }] }];
+                const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: payload }) });
+                document.getElementById(loadingId)?.remove();
+                const data = await res.json();
+                const aiResponse = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim());
+                state.history.push({ role: "user", parts: [{ text }] }, { role: "model", parts: [{ text: JSON.stringify(aiResponse) }] });
+                
+                messagesContainer.innerHTML = ''; // Limpiar pantalla
+                addAiSubtitle(aiResponse.reply);
+                speak(aiResponse.reply);
+
+                if (aiResponse.suggested_response) {
+                    state.currentSuggested = aiResponse.suggested_response;
+                    addSuggestedResponse(aiResponse.suggested_response);
+                }
+            } catch (err) { document.getElementById(loadingId)?.remove(); }
+        }
+
+        function addAiSubtitle(text) {
+            const div = document.createElement('div'); div.className = "msg-enter flex justify-center w-full mb-6";
+            div.innerHTML = `<div class="bg-indigo-900/40 border-2 border-indigo-500/30 px-6 py-4 rounded-3xl max-w-lg text-center shadow-lg relative"><div class="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center border-4 border-slate-900"><i class="fas fa-robot text-white text-xs"></i></div><p class="text-lg font-bold text-indigo-100 mt-1">"${text}"</p></div>`;
+            messagesContainer.appendChild(div);
+        }
+
+        function addSuggestedResponse(text) {
+            const div = document.createElement('div'); div.className = "msg-enter flex justify-center w-full";
+            div.innerHTML = `<div class="w-full max-w-md bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border-2 border-violet-500/30 rounded-3xl p-6 text-center shadow-xl"><div class="flex items-center justify-center gap-2 mb-4"><i class="fas fa-comment-dots text-violet-400"></i><span class="text-xs font-black text-violet-400 uppercase tracking-widest">Lo que debes decir:</span></div><p class="text-2xl font-black text-white leading-tight mb-6">"${text}"</p><button onclick="speak('${text.replace(/'/g, "\\'")}')" class="w-full bg-violet-500/20 hover:bg-violet-500/30 border-2 border-violet-500/40 text-violet-300 font-bold py-3 rounded-2xl transition-all flex items-center justify-center gap-2"><i class="fas fa-volume-up"></i> Escuchar</button></div>`;
+            messagesContainer.appendChild(div);
+        }
+
+        function showPronunciationRetry(pct, target, userSaid) {
+            messagesContainer.innerHTML = '';
+            const div = document.createElement('div'); div.className = "msg-enter flex justify-center w-full";
+            div.innerHTML = `<div class="w-full max-w-md bg-slate-800 border-2 border-red-500/40 rounded-3xl p-6 text-center shadow-2xl"><div class="flex justify-center gap-2 mb-4"><i class="fas fa-exclamation-circle text-red-400 text-xl"></i><span class="text-sm font-black text-red-400 uppercase">Inténtalo de nuevo</span></div><div class="bg-slate-900/50 rounded-xl p-3 mb-3 text-left"><p class="text-[10px] text-slate-400 font-black uppercase mb-1">Debías decir:</p><p class="text-lg font-bold text-emerald-400">"${target}"</p></div><div class="bg-slate-900/50 rounded-xl p-3 mb-6 text-left"><p class="text-[10px] text-slate-400 font-black uppercase mb-1">Pero se escuchó:</p><p class="text-base font-bold text-red-400 line-through">"${userSaid}"</p></div><div class="bg-slate-700 rounded-full h-4 mb-2 overflow-hidden border border-slate-600"><div class="h-full bg-red-500 rounded-full score-bar-fill" style="--target-w:${pct}%; width:0%"></div></div><div class="flex justify-between text-xs font-extrabold mb-6"><span class="text-red-400">0%</span><span class="text-red-400 text-lg">${pct}%</span><span class="text-emerald-400">100%</span></div><p class="text-sm text-slate-400 font-bold mb-6">Necesitas <span class="text-emerald-400 font-black">60%</span>. Toca el micrófono para repetir.</p></div>`;
+            messagesContainer.appendChild(div);
+        }
+
+        function showPronunciationSuccess(pct) {
+            messagesContainer.innerHTML = `<div class="flex flex-col items-center justify-center w-full h-full msg-enter"><div class="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center mb-6 border-4 border-emerald-500/40"><i class="fas fa-check text-emerald-400 text-5xl"></i></div><p class="text-emerald-400 font-black text-3xl mb-2">${pct}%</p><p class="text-emerald-300 font-bold text-lg uppercase tracking-widest">¡Excelente!</p></div>`;
+        }
+
+        function speak(text) {
+            if (synth.speaking) synth.cancel();
+            const utter = new SpeechSynthesisUtterance(text.replace(/<[^>]*>?/gm, ''));
+            if (state.voice) utter.voice = state.voice;
+            utter.onstart = () => document.getElementById('stop-audio-btn').classList.remove('hidden');
+            utter.onend = () => document.getElementById('stop-audio-btn').classList.add('hidden');
+            synth.speak(utter);
+        }
+        function stopAudio() { synth.cancel(); document.getElementById('stop-audio-btn').classList.add('hidden'); }
+    </script>
+</body>
+</html>

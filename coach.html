@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speaking Pro | Coach</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+        
+        body { 
+            font-family: 'Nunito', sans-serif; 
+            background-color: #0f172a;
+            color: #f8fafc; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Pulso para cuando está grabando */
+        @keyframes pulseRing {
+            0%   { transform: scale(1);    opacity: 0.7; }
+            70%  { transform: scale(1.5);  opacity: 0;   }
+            100% { transform: scale(1.5);  opacity: 0;   }
+        }
+        .pulse-ring {
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            border: 3px solid #ef4444;
+            animation: pulseRing 1.4s ease-out infinite;
+        }
+
+        /* Barra visualizadora simulada */
+        @keyframes barDance {
+            0%, 100% { height: 8px;  }
+            50%       { height: 32px; }
+        }
+        .vis-bar { 
+    width: 5px; 
+    border-radius: 3px; 
+    background: #3b82f6; 
+    height: 8px; /* Altura mínima base */
+    transition: height 0.05s ease; /* Transición rápida para reaccionar al audio */
+}
+
+        /* Toast de error */
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+        .toast { animation: slideUp 0.3s ease; }
+
+        /* Skeleton shimmer */
+        @keyframes shimmer {
+            0%   { background-position: -400px 0; }
+            100% { background-position:  400px 0; }
+        }
+        .skeleton {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 400px 100%;
+            animation: shimmer 1.4s infinite;
+            border-radius: 8px;
+        }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 selection:bg-blue-500 selection:text-white pb-10">
+
+    <!-- Toast de error (inicialmente oculto) -->
+    <div id="errorToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 hidden">
+        <div class="toast bg-red-900 border-2 border-red-700 text-red-200 font-bold text-sm px-5 py-3 rounded-2xl shadow-xl flex items-center gap-3 max-w-xs text-center">
+            <i class="fas fa-exclamation-triangle text-red-400 shrink-0"></i>
+            <span id="errorToastMsg"></span>
+        </div>
+    </div>
+
+    <div class="w-full max-w-md mt-4">
+        
+        <header class="flex items-center gap-4 mb-6 px-2">
+            <a href="index.html" class="w-10 h-10 rounded-2xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 hover:text-white hover:border-slate-500 transition-all shadow-[0_4px_0_0_#334155] active:translate-y-1 active:shadow-none cursor-pointer">
+                <i class="fas fa-arrow-left"></i>
+            </a>
+            <div>
+                <h1 class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400 tracking-tight">
+                    Pronunciation
+                </h1>
+                <p id="connectionStatus" class="text-[10px] text-slate-500 font-black uppercase tracking-widest flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-slate-500 inline-block"></span> System Ready
+                </p>
+            </div>
+        </header>
+
+        <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 shadow-[0_8px_0_0_#1e293b] relative z-10">
+            
+            <div class="flex gap-3 mb-2">
+                <input type="text" id="userText" placeholder="Ej: Schedule, Beach..." 
+                       class="flex-1 bg-slate-900 border-2 border-slate-700 rounded-2xl px-5 py-4 text-white text-lg font-bold outline-none focus:border-blue-500 transition-all placeholder-slate-600"
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                
+                <button id="btnAnalyze" class="w-16 shrink-0 bg-blue-500 hover:bg-blue-400 text-white border-2 border-blue-600 shadow-[0_4px_0_0_#2563eb] active:shadow-none active:translate-y-1 rounded-2xl flex items-center justify-center font-black transition-all">
+                    GO
+                </button>
+            </div>
+
+            <!-- Panel fonético -->
+            <div id="phoneticPanel" class="hidden mt-6 space-y-4 fade-in">
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-slate-700 border-2 border-slate-600 rounded-2xl p-4 text-center">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">IPA (Inglés)</p>
+                        <p id="phoneticEn" class="text-xl font-black text-yellow-400 truncate">--</p>
+                    </div>
+                    <div class="bg-slate-700 border-2 border-slate-600 rounded-2xl p-4 text-center">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Como suena</p>
+                        <p id="phoneticEs" class="text-xl font-black text-emerald-400 truncate">--</p>
+                    </div>
+                </div>
+
+                <!-- Skeleton que cubre los cards mientras carga -->
+                <div id="phoneticSkeleton" class="hidden grid grid-cols-2 gap-3 absolute inset-0 rounded-2xl">
+                    <div class="skeleton h-full rounded-2xl"></div>
+                    <div class="skeleton h-full rounded-2xl"></div>
+                </div>
+
+                <div class="space-y-2">
+                    <button id="btnToggleTip" class="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-2 border-indigo-500/30 rounded-2xl py-3 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        <i class="fas fa-lightbulb"></i> Ver Consejo Pro
+                    </button>
+                    <div id="tipContent" class="hidden bg-slate-900 border-2 border-slate-700 rounded-2xl p-4 text-sm font-bold text-indigo-200 text-center fade-in">
+                        <p id="pronunciationTip"></p>
+                    </div>
+                </div>
+                
+                <button id="btnSpeakAI" class="w-full bg-slate-700 hover:bg-slate-600 text-white border-2 border-slate-600 shadow-[0_4px_0_0_#475569] active:shadow-none active:translate-y-1 rounded-2xl py-4 font-black transition-all flex items-center justify-center gap-3 mt-2">
+                    <i class="fas fa-volume-up text-xl text-slate-400"></i> Escuchar Referencia
+                </button>
+            </div>
+
+            <hr class="border-slate-700 border-2 rounded-full my-6 hidden" id="dividerLine">
+
+            <!-- Panel de práctica -->
+            <div id="practicePanel" class="hidden flex-col items-center fade-in">
+                <h3 class="font-black text-slate-400 uppercase tracking-widest text-xs mb-6">Tu Turno</h3>
+                
+                <div class="relative w-full h-32 flex items-center justify-center mb-4">
+
+                    <!-- Visualizador de barras (sin getUserMedia, sin conflicto con Safari) -->
+                    <div id="visualizerBars" class="absolute inset-0 flex items-end justify-center gap-1.5 pb-2 opacity-0 transition-opacity duration-300">
+                        <div class="vis-bar" style="animation-delay:0.0s"></div>
+                        <div class="vis-bar" style="animation-delay:0.1s"></div>
+                        <div class="vis-bar" style="animation-delay:0.2s"></div>
+                        <div class="vis-bar" style="animation-delay:0.3s"></div>
+                        <div class="vis-bar" style="animation-delay:0.4s"></div>
+                        <div class="vis-bar" style="animation-delay:0.15s"></div>
+                        <div class="vis-bar" style="animation-delay:0.25s"></div>
+                        <div class="vis-bar" style="animation-delay:0.05s"></div>
+                        <div class="vis-bar" style="animation-delay:0.35s"></div>
+                        <div class="vis-bar" style="animation-delay:0.45s"></div>
+                        <div class="vis-bar" style="animation-delay:0.08s"></div>
+                        <div class="vis-bar" style="animation-delay:0.18s"></div>
+                    </div>
+                    
+                    <!-- Botón de grabación con anillo pulsante -->
+                    <button id="btnRecord" class="relative z-10 w-24 h-24 bg-blue-500 border-4 border-blue-600 shadow-[0_6px_0_0_#1e3a8a] active:shadow-none active:translate-y-1 rounded-full flex items-center justify-center transition-all group">
+                        <i id="recordIcon" class="fas fa-microphone text-3xl text-white group-hover:scale-110 transition-transform"></i>
+                    </button>
+                </div>
+                
+                <p id="statusText" class="text-sm font-bold text-slate-400 h-6 text-center">Presiona para grabar</p>
+
+                <!-- Banner de permiso denegado (oculto por defecto) -->
+                <div id="permissionBanner" class="hidden mt-3 w-full bg-amber-900/40 border-2 border-amber-700/50 rounded-2xl p-3 text-center fade-in">
+                    <p class="text-amber-300 font-bold text-xs leading-relaxed">
+                        <i class="fas fa-lock mr-1"></i>
+                        Micrófono bloqueado. Ve a <strong>Configuración → Safari/Chrome</strong> y activa el permiso de micrófono para este sitio.
+                    </p>
+                </div>
+            </div>
+
+            <div id="resultPanel" class="hidden mt-6 bg-slate-900 border-2 border-slate-700 rounded-2xl p-5 fade-in">
+                
+                <div id="diffView" class="mb-5 text-center"></div>
+                
+                <div class="relative pt-1">
+                    <div class="flex mb-3 items-center justify-between">
+                        <span class="text-[10px] font-black uppercase text-slate-500 tracking-widest">Precisión</span>
+                        <span id="scoreText" class="text-xl font-black text-white">0%</span>
+                    </div>
+                    <div class="h-4 bg-slate-800 rounded-full border-2 border-slate-700 overflow-hidden">
+                        <div id="scoreBar" class="h-full bg-blue-500 transition-all duration-1000 w-0 rounded-r-full"></div>
+                    </div>
+                </div>
+                
+                <p id="feedbackMsg" class="text-center text-sm font-black text-slate-300 mt-4"></p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // --- UI REFS ---
+        const els = {
+            userText:          document.getElementById('userText'),
+            btnAnalyze:        document.getElementById('btnAnalyze'),
+            phoneticPanel:     document.getElementById('phoneticPanel'),
+            phoneticEn:        document.getElementById('phoneticEn'),
+            phoneticEs:        document.getElementById('phoneticEs'),
+            practicePanel:     document.getElementById('practicePanel'),
+            btnRecord:         document.getElementById('btnRecord'),
+            recordIcon:        document.getElementById('recordIcon'),
+            btnSpeakAI:        document.getElementById('btnSpeakAI'),
+            statusText:        document.getElementById('statusText'),
+            visualizerBars:    document.getElementById('visualizerBars'),
+            resultPanel:       document.getElementById('resultPanel'),
+            diffView:          document.getElementById('diffView'),
+            scoreText:         document.getElementById('scoreText'),
+            scoreBar:          document.getElementById('scoreBar'),
+            feedbackMsg:       document.getElementById('feedbackMsg'),
+            tipContent:        document.getElementById('tipContent'),
+            pronunciationTip:  document.getElementById('pronunciationTip'),
+            btnToggleTip:      document.getElementById('btnToggleTip'),
+            connectionStatus:  document.getElementById('connectionStatus'),
+            dividerLine:       document.getElementById('dividerLine'),
+            errorToast:        document.getElementById('errorToast'),
+            errorToastMsg:     document.getElementById('errorToastMsg'),
+            permissionBanner:  document.getElementById('permissionBanner'),
+        };
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // UTILIDADES DE UI
+        // ─────────────────────────────────────────────────────────────────────────
+
+        let toastTimeout;
+        function showToast(msg) {
+            clearTimeout(toastTimeout);
+            els.errorToastMsg.textContent = msg;
+            els.errorToast.classList.remove('hidden');
+            toastTimeout = setTimeout(() => els.errorToast.classList.add('hidden'), 4000);
+        }
+
+        function setLoadingState(loading) {
+            els.btnAnalyze.innerHTML  = loading
+                ? '<i class="fas fa-circle-notch fa-spin text-xl"></i>'
+                : 'GO';
+            els.btnAnalyze.disabled   = loading;
+            els.userText.disabled     = loading;
+
+            // Skeleton sobre los cards fonéticos mientras carga
+            if (loading && !els.phoneticPanel.classList.contains('hidden')) {
+                els.phoneticEn.textContent = '…';
+                els.phoneticEs.textContent = '…';
+            }
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // 1. LÓGICA DE API  (sin cambios funcionales, mejor manejo de error)
+        // ─────────────────────────────────────────────────────────────────────────
+
+        els.btnAnalyze.addEventListener('click', async () => {
+            const text = els.userText.value.trim();
+            if (!text) return;
+
+            // Cerrar tip si estaba abierto de la búsqueda anterior
+            els.tipContent.classList.add('hidden');
+
+            setLoadingState(true);
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ text })
+                });
+
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                els.phoneticEn.innerText      = data.ipa;
+                els.phoneticEs.innerText      = data.spanish_sound;
+                els.pronunciationTip.innerText = data.tip;
+
+                // Mostrar paneles
+                els.phoneticPanel.classList.remove('hidden');
+                els.dividerLine.classList.remove('hidden');
+                els.practicePanel.classList.remove('hidden');
+                els.practicePanel.classList.add('flex');
+                els.resultPanel.classList.add('hidden');
+
+                // Status conectado
+                els.connectionStatus.innerHTML =
+                    `<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block shadow-[0_0_8px_0_#10b981]"></span> CONECTADO`;
+                els.connectionStatus.classList.replace('text-slate-500', 'text-emerald-400');
+
+            } catch (e) {
+                console.error(e);
+                showToast("No se pudo conectar con la IA. Verifica tu conexión e intenta de nuevo.");
+            } finally {
+                setLoadingState(false);
+            }
+        });
+
+        // Enter en el input también dispara el análisis
+        els.userText.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') els.btnAnalyze.click();
+        });
+
+        els.btnToggleTip.addEventListener('click', () => {
+            els.tipContent.classList.toggle('hidden');
+        });
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // 2. TTS
+        // ─────────────────────────────────────────────────────────────────────────
+
+        els.btnSpeakAI.addEventListener('click', () => {
+            const u  = new SpeechSynthesisUtterance(els.userText.value);
+            u.lang   = 'en-US';
+            u.rate   = 0.85;
+            window.speechSynthesis.speak(u);
+        });
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // 3. SPEECH RECOGNITION  ← BLOQUE COMPLETAMENTE REESCRITO
+        //
+        //  Problemas que resuelve:
+        //  a) iOS Safari requiere que recognition.start() se llame DENTRO de
+        //     un handler de evento de usuario (no en async) para no ser bloqueado.
+        //  b) getUserMedia + SpeechRecognition compiten por el micro en Safari.
+        //     Solución: el visualizador ahora es puramente CSS (no usa getUserMedia).
+        //  c) Llamar recognition.start() cuando ya está corriendo lanza
+        //     InvalidStateError. Solución: botón alterna start/stop.
+        //  d) iOS puede quedar colgado sin devolver onend. Solución: timeout de 10s.
+        //  e) Error 'not-allowed' ahora muestra el banner de permisos.
+        // ─────────────────────────────────────────────────────────────────────────
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition   = null;
+        let isRecording   = false;
+        let gotResult     = false;
+        let recordTimeout = null;  // timeout de seguridad
+
+        // ── Retry automático para error 'network' en Chrome desktop ──
+        let networkRetryCount = 0;
+        const MAX_NETWORK_RETRIES = 3;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang           = 'en-US';
+            recognition.continuous     = false;   // una sola frase
+            recognition.interimResults = false;   // sólo resultado final
+            recognition.maxAlternatives = 1;
+        }
+
+        // ── Helpers visuales ─────────────────────────────────────────────────────
+
+        function setRecordingUI(active) {
+            isRecording = active;
+
+            // Visualizador de barras
+            els.visualizerBars.style.opacity = active ? '0.6' : '0';
+
+            if (active) {
+                startVisualizer(); // 🟢 ¡AQUÍ ENCENDEMOS LAS ONDAS REALES!
+
+                // Botón rojo + anillo pulsante
+                els.btnRecord.classList.replace('bg-blue-500', 'bg-red-500');
+                els.btnRecord.classList.replace('border-blue-600', 'border-red-600');
+                els.btnRecord.style.boxShadow  = '0 4px 0 0 #7f1d1d';
+                els.btnRecord.style.transform  = 'translateY(2px)';
+                els.recordIcon.className       = 'fas fa-stop text-2xl text-white';
+
+                // Anillo pulsante
+                if (!document.getElementById('pulseRing')) {
+                    const ring = document.createElement('div');
+                    ring.id    = 'pulseRing';
+                    ring.className = 'pulse-ring';
+                    els.btnRecord.appendChild(ring);
+                }
+
+                els.statusText.textContent  = '¡Habla ahora!';
+                els.statusText.className    = 'text-sm font-bold text-red-400 h-6 text-center';
+                els.resultPanel.classList.add('hidden');
+
+            } else {
+                stopVisualizer(); // 🔴 ¡AQUÍ APAGAMOS LAS ONDAS!
+
+                // Restaurar botón azul
+                els.btnRecord.classList.replace('bg-red-500',   'bg-blue-500');
+                els.btnRecord.classList.replace('border-red-600', 'border-blue-600');
+                els.btnRecord.style.boxShadow = '0 6px 0 0 #1e3a8a';
+                els.btnRecord.style.transform = '';
+                els.recordIcon.className      = 'fas fa-microphone text-3xl text-white';
+
+                // Quitar anillo
+                const ring = document.getElementById('pulseRing');
+                if (ring) ring.remove();
+
+                els.statusText.className = 'text-sm font-bold text-slate-400 h-6 text-center';
+            }
+        }
+
+
+        // ── Lógica del Visualizador de Audio ─────────────────────────────────────
+let audioContext, analyser, visualizerId;
+let visualizerStream = null;
+
+async function startVisualizer() {
+    try {
+        visualizerStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaStreamSource(visualizerStream);
+        source.connect(analyser);
+        analyser.fftSize = 64; // Tamaño de muestra bajo para rendimiento
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const bars = document.querySelectorAll('.vis-bar');
+        
+        function draw() {
+            visualizerId = requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+            
+            bars.forEach((bar, index) => {
+                // Tomamos frecuencias diferentes para cada barra para un efecto realista
+                const value = dataArray[index] || 0; 
+                // Mapeamos el valor (0-255) a una altura en píxeles (ej. 8px min, 40px max)
+                const height = Math.max(8, (value / 255) * 40); 
+                bar.style.height = `${height}px`;
+            });
+        }
+        draw();
+    } catch (err) {
+        console.warn("Visualizador: No se pudo capturar audio para las ondas.", err);
+    }
+}
+
+function stopVisualizer() {
+    if (visualizerId) cancelAnimationFrame(visualizerId);
+    if (audioContext && audioContext.state !== 'closed') audioContext.close();
+    if (visualizerStream) visualizerStream.getTracks().forEach(t => t.stop());
+    // Regresar barras a su estado original
+    document.querySelectorAll('.vis-bar').forEach(bar => bar.style.height = '8px');
+}
+
+        // ── Mapeo de errores a mensajes amigables ─────────────────────────────────
+
+        const errorMessages = {
+            'not-allowed':    null,    // → muestra banner de permisos (ver abajo)
+            'audio-capture':  'No se detectó ningún micrófono en tu dispositivo.',
+            'no-speech':      'No te escuché. ¿Hubo ruido? Intenta de nuevo.',
+            'network':        'Error de red. Verifica tu conexión a internet.',
+            'service-not-allowed': null, // igual que not-allowed en iOS
+            'aborted':        null,    // cancelado por el usuario, sin mensaje
+        };
+
+        // ── Click del botón ───────────────────────────────────────────────────────
+
+        els.btnRecord.addEventListener('click', () => {
+
+            if (!recognition) {
+                showToast('Tu navegador no soporta reconocimiento de voz. Prueba con Chrome.');
+                return;
+            }
+
+            // TOGGLE: si está grabando, detener manualmente
+            if (isRecording) {
+                clearTimeout(recordTimeout);
+                try { recognition.stop(); } catch (_) {}
+                return;
+            }
+
+            // Limpiar banner de permisos de sesiones anteriores
+            els.permissionBanner.classList.add('hidden');
+
+            // ── IMPORTANTE: recognition.start() debe estar en el call stack
+            //    del evento click (no dentro de un await ni setTimeout) para
+            //    que iOS Safari no lo bloquee como "gesture required".
+            try {
+                recognition.start();
+            } catch (e) {
+                // InvalidStateError → ya estaba corriendo (raza rara); ignorar
+                console.warn('recognition.start() error:', e.name);
+            }
+        });
+
+        // ── Eventos de reconocimiento ─────────────────────────────────────────────
+
+        if (recognition) {
+
+            recognition.onstart = () => {
+                gotResult = false;
+                setRecordingUI(true);
+
+                // Timeout de seguridad: iOS a veces no dispara onend si el usuario
+                // apaga la pantalla o la app pasa a segundo plano.
+                recordTimeout = setTimeout(() => {
+                    if (isRecording) {
+                        try { recognition.stop(); } catch (_) {}
+                        els.statusText.textContent = 'Tiempo agotado. Toca para intentar de nuevo.';
+                    }
+                }, 10000); // 10 segundos máximo
+            };
+
+            recognition.onresult = (event) => {
+                gotResult = true;
+                networkRetryCount = 0; // Conexión OK — resetear contador
+                clearTimeout(recordTimeout);
+                const spoken = event.results[0][0].transcript;
+                const target = els.userText.value;
+                els.statusText.textContent = 'Analizando…';
+                calculateResult(target, spoken);
+            };
+
+            recognition.onend = () => {
+                clearTimeout(recordTimeout);
+                setRecordingUI(false);
+
+                if (!gotResult) {
+                    els.statusText.textContent = 'No te escuché. Intenta de nuevo.';
+                } else {
+                    els.statusText.textContent = 'Toca para intentar de nuevo';
+                }
+            };
+
+            recognition.onerror = (event) => {
+                clearTimeout(recordTimeout);
+                gotResult = false;
+
+                console.warn('SpeechRecognition error:', event.error);
+
+                if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                    networkRetryCount = 0;
+                    els.permissionBanner.classList.remove('hidden');
+                    els.statusText.textContent = 'Permiso de micrófono necesario';
+
+                } else if (event.error === 'network') {
+                    // Chrome desktop arroja 'network' de forma intermitente — reintentar automáticamente
+                    if (networkRetryCount < MAX_NETWORK_RETRIES) {
+                        networkRetryCount++;
+                        els.statusText.textContent = `Reconectando… (intento ${networkRetryCount}/${MAX_NETWORK_RETRIES})`;
+                        setTimeout(() => {
+                            if (!isRecording) {
+                                try { recognition.start(); }
+                                catch(e) { els.statusText.textContent = 'No se pudo reconectar. Intenta de nuevo.'; }
+                            }
+                        }, 800 * networkRetryCount);
+                        return; // No ejecutar setRecordingUI(false) todavía
+                    } else {
+                        networkRetryCount = 0;
+                        const isHttps = location.protocol === 'https:' ||
+                                        location.hostname === 'localhost' ||
+                                        location.hostname === '127.0.0.1';
+                        const msg = isHttps
+                            ? 'Error de red persistente. Comprueba tu conexión.'
+                            : '⚠️ Requiere HTTPS para funcionar en desktop.';
+                        showToast(msg);
+                        els.statusText.textContent = 'Error de red. Intenta de nuevo.';
+                    }
+
+                } else if (event.error === 'aborted') {
+                    els.statusText.textContent = 'Presiona para grabar';
+
+                } else {
+                    const msg = errorMessages[event.error]
+                        ?? `Error de reconocimiento (${event.error}). Intenta de nuevo.`;
+                    if (msg) showToast(msg);
+                    els.statusText.textContent = 'Algo salió mal. Intenta de nuevo.';
+                }
+                // onend se disparará después; setRecordingUI(false) ocurrirá ahí
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // 4. COMPARADOR VISUAL
+        // ─────────────────────────────────────────────────────────────────────────
+
+        function calculateResult(target, spoken) {
+            els.resultPanel.classList.remove('hidden');
+
+            const cleanT = target.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+            const cleanS = spoken.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+
+            els.diffView.innerHTML = '';
+
+            if (cleanT === cleanS) {
+                els.diffView.innerHTML = `
+                    <div class="bg-emerald-500/20 border-2 border-emerald-500/50 rounded-2xl p-4 inline-block">
+                        <i class="fas fa-check-circle text-emerald-400 text-2xl mb-2"></i>
+                        <p class="font-black text-emerald-400 text-lg">¡Escuché exactamente eso!</p>
+                    </div>`;
+                updateScore(100, '¡PERFECTO! 🎉', 'bg-emerald-500');
+                return;
+            }
+
+            const dist  = levenshtein(cleanT, cleanS);
+            const score = Math.max(0, Math.round(
+                ((Math.max(cleanT.length, cleanS.length) - dist) / Math.max(cleanT.length, cleanS.length)) * 100
+            ));
+
+            els.diffView.innerHTML = `
+                <div class="bg-slate-800 rounded-2xl p-4 border-2 border-slate-700 shadow-inner">
+                    <span class="text-[10px] font-black uppercase text-slate-500 block mb-1 tracking-widest">Lo que te escuché decir:</span>
+                    <span class="text-white font-bold text-lg">"${spoken}"</span>
+                </div>`;
+
+            const msg   = score > 80 ? '¡Casi perfecto!'       : (score > 50 ? 'Vas por buen camino'   : 'Hay que practicar más');
+            const color = score > 80 ? 'bg-emerald-500'        : (score > 50 ? 'bg-yellow-500'         : 'bg-red-500');
+            updateScore(score, msg, color);
+        }
+
+        function updateScore(score, msg, colorClass) {
+            els.scoreText.innerText = score + '%';
+            els.scoreBar.className  = `h-full transition-all duration-1000 w-0 rounded-r-full ${colorClass}`;
+            setTimeout(() => { els.scoreBar.style.width = score + '%'; }, 50);
+            els.feedbackMsg.innerText = msg;
+            els.feedbackMsg.className = `text-center text-sm font-black mt-4 ${colorClass.replace('bg-', 'text-')}`;
+        }
+
+        function levenshtein(a, b) {
+            const matrix = [];
+            for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+            for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+            for (let i = 1; i <= b.length; i++) {
+                for (let j = 1; j <= a.length; j++) {
+                    if (b.charAt(i-1) === a.charAt(j-1)) matrix[i][j] = matrix[i-1][j-1];
+                    else matrix[i][j] = Math.min(matrix[i-1][j-1]+1, matrix[i][j-1]+1, matrix[i-1][j]+1);
+                }
+            }
+            return matrix[b.length][a.length];
+        }
+
+    </script>
+</body>
+</html>

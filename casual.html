@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Speaking Pro | AI Immersion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+        
+        body { 
+            font-family: 'Nunito', sans-serif; 
+            background-color: #0f172a; 
+            color: #f8fafc; 
+            overflow: hidden; 
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        .msg-enter { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .typing-dot { animation: bounce 1.4s infinite ease-in-out both; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .highlight-word {
+            background-color: rgba(234, 179, 8, 0.15);
+            text-decoration: underline;
+            text-decoration-style: wavy;
+            text-decoration-color: #eab308;
+            text-underline-offset: 3px;
+            cursor: pointer;
+            border-radius: 4px;
+            padding: 0 3px;
+            font-weight: 700;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .highlight-word:hover, .highlight-word:active { background-color: rgba(234, 179, 8, 0.35); }
+
+        /* ── Tooltip de Vocabulario ── */
+        #word-tooltip {
+            position: fixed;
+            z-index: 9999;
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 2px solid #eab308;
+            border-radius: 18px;
+            padding: 16px 18px;
+            min-width: 230px;
+            max-width: 290px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.75), 0 0 0 1px rgba(234,179,8,0.1);
+            pointer-events: auto;
+        }
+        #word-tooltip.tt-hidden { display: none; }
+        #word-tooltip.tt-visible { display: block; animation: slideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        /* ── Botón de replay en mensajes AI ── */
+        .replay-audio-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .group:hover .replay-audio-btn, .replay-audio-btn:focus { opacity: 1; }
+        @media (hover: none) {
+            /* En móvil sin hover: siempre visible con opacidad reducida */
+            .absolute.top-2.right-2 { opacity: 0.7 !important; }
+        }
+        
+        @keyframes pulse-ring {
+            0%   { box-shadow: 0 0 0 0 rgba(239,68,68,0.7), 0 4px 0 0 #b91c1c; }
+            70%  { box-shadow: 0 0 0 14px rgba(239,68,68,0), 0 4px 0 0 #b91c1c; }
+            100% { box-shadow: 0 0 0 0 rgba(239,68,68,0), 0 4px 0 0 #b91c1c; }
+        }
+        @keyframes waveBar {
+            0%,100% { transform: scaleY(0.4); }
+            50%      { transform: scaleY(1.3); }
+        }
+        .mic-active {
+            animation: pulse-ring 1.4s infinite;
+            background-color: #ef4444 !important;
+            color: white !important;
+            border-color: #b91c1c !important;
+            box-shadow: 0 4px 0 0 #b91c1c;
+        }
+        .mic-active:active { transform: translateY(2px); box-shadow: none !important; }
+
+        @keyframes reconnectPulse {
+            0%, 100% { background-color: #f59e0b; box-shadow: 0 4px 0 0 #d97706; }
+            50% { background-color: #fbbf24; box-shadow: 0 4px 0 0 #b45309; }
+        }
+        .mic-reconnecting {
+            animation: reconnectPulse 0.8s ease-in-out infinite !important;
+            color: white !important;
+            border-color: #d97706 !important;
+        }
+        .mic-reconnecting:active { transform: translateY(2px); box-shadow: none !important; }
+
+        /* ── Casual mode transcript panel ── */
+        #casual-transcript-panel {
+            display: none;
+            background: rgba(15, 23, 42, 0.9);
+            border: 2px solid rgba(71, 85, 105, 0.5);
+            border-radius: 16px;
+            padding: 10px 14px;
+            min-height: 48px;
+            max-height: 90px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            transition: border-color 0.3s ease, opacity 0.3s ease;
+        }
+        #casual-transcript-panel.panel-visible {
+            display: block;
+            border-color: rgba(239, 68, 68, 0.45);
+        }
+        #casual-transcript-final {
+            color: #e2e8f0;
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        #casual-transcript-interim {
+            color: #64748b;
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.5;
+            word-break: break-word;
+        }
+        #casual-transcript-placeholder {
+            color: #475569;
+            font-size: 0.85rem;
+            font-weight: 700;
+            font-style: italic;
+            user-select: none;
+        }
+        /* Stop button for casual mode */
+        #casual-send-btn {
+            display: none;
+        }
+        #casual-send-btn.btn-visible {
+            display: flex;
+        }
+
+        .wave-bar {
+            display: inline-block; width: 4px; height: 12px; border-radius: 2px;
+            background: #ef4444; transform-origin: bottom;
+            animation: waveBar 0.6s ease-in-out infinite;
+        }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.15s; }
+
+        #mic-permission-banner {
+            display: none;
+            position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
+            z-index: 100; background: #7f1d1d; border: 2px solid #ef4444;
+            color: #fca5a5; font-size: 0.75rem; font-weight: 800;
+            padding: 10px 20px; border-radius: 999px;
+            text-align: center; white-space: nowrap;
+            animation: slideUp 0.3s cubic-bezier(0.16,1,0.3,1);
+        }
+
+        #send-spinner { display: none; }
+        .is-loading #send-spinner { display: flex; }
+        .is-loading #send-icon { display: none; }
+
+        .suggested-card { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        @keyframes scoreGrow { from { width: 0%; } to { width: var(--target-w); } }
+        .score-bar-fill { animation: scoreGrow 0.8s cubic-bezier(0.16,1,0.3,1) forwards; }
+        .mode-card { transition: all 0.2s cubic-bezier(0.16,1,0.3,1); }
+        .mode-card.selected { border-color: #6366f1; background-color: rgba(99,102,241,0.12); }
+        .mode-card:not(.selected):hover { border-color: #475569; }
+    </style>
+</head>
+
+<body class="flex h-screen w-full antialiased selection:bg-indigo-500 selection:text-white">
+
+    <div id="setup-overlay" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 transition-opacity duration-300 overflow-y-auto p-4">
+        <div class="relative w-full max-w-lg bg-slate-800 p-8 rounded-3xl border-2 border-slate-700 shadow-2xl my-auto">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-indigo-500/20 text-indigo-400 mb-4 border-2 border-indigo-500/30">
+                    <i class="fas fa-comments text-3xl"></i>
+                </div>
+                <h1 class="text-3xl font-black text-white tracking-tight">Speaking Immersion</h1>
+                <p class="text-slate-400 font-semibold mt-2">Elige tu modo de práctica.</p>
+            </div>
+
+            <div class="space-y-6">
+                <div>
+                    <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 block">1. Selecciona tu Modo</label>
+                    <div class="grid grid-cols-1 gap-3" id="mode-selector"></div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 block">2. Tu Nivel Actual</label>
+                    <div class="flex bg-slate-700 p-1.5 rounded-xl border-2 border-slate-600">
+                        <button id="lvl-beginner" onclick="setLevel('beginner')" class="flex-1 text-sm py-2 rounded-lg text-slate-300 hover:text-white font-bold transition-all">Principiante</button>
+                        <button id="lvl-intermediate" onclick="setLevel('intermediate')" class="flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold transition-all shadow-[0_2px_0_0_#4338ca]">Intermedio</button>
+                        <button id="lvl-advanced" onclick="setLevel('advanced')" class="flex-1 text-sm py-2 rounded-lg text-slate-300 hover:text-white font-bold transition-all">Avanzado</button>
+                    </div>
+                </div>
+
+                <button id="startBtn" onclick="validateAndStart()" class="w-full bg-emerald-500 hover:bg-emerald-400 text-white font-black py-4 rounded-2xl text-lg border-2 border-emerald-600 shadow-[0_6px_0_0_#059669] active:shadow-none active:translate-y-1.5 transition-all flex justify-center items-center gap-2">
+                    <i class="fas fa-play"></i> Iniciar Sesión 
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-layout" class="flex w-full h-full opacity-0 pointer-events-none transition-opacity duration-500 overflow-hidden relative">
+        <div id="mobile-backdrop" onclick="toggleMobileMenu()" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 hidden md:hidden transition-opacity opacity-0"></div>
+
+        <aside id="sidebar" class="fixed inset-y-0 left-0 w-[85%] max-w-sm md:relative md:w-80 bg-slate-800 border-r-2 border-slate-700 flex flex-col shrink-0 z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-300 shadow-2xl md:shadow-none">
+            <div class="h-16 flex items-center justify-between px-6 border-b-2 border-slate-700 bg-slate-800 shrink-0">
+                <div class="flex items-center gap-3">
+                    <a href="index.html" class="text-slate-400 hover:text-white transition hidden md:block"><i class="fas fa-arrow-left"></i></a>
+                    <span class="font-black text-white text-lg">Ajustes</span>
+                </div>
+                <button onclick="toggleMobileMenu()" class="md:hidden text-slate-400 hover:text-white w-8 h-8 flex items-center justify-center rounded-lg bg-slate-700 active:scale-95"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                <div class="bg-slate-700 p-4 rounded-2xl border-2 border-slate-600">
+                    <span class="text-xs font-extrabold text-indigo-400 uppercase tracking-widest block mb-1">Modo Activo</span>
+                    <div class="text-base text-white font-bold truncate" id="current-role-display">—</div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Voz del Interlocutor</label>
+                    <div class="relative">
+                        <select id="voice-select" onchange="changeVoice(this.value)" class="w-full bg-slate-700 text-white font-semibold px-4 py-3 rounded-xl border-2 border-slate-600 appearance-none outline-none focus:border-indigo-500 cursor-pointer text-sm">
+                            <option value="">Cargando voces reales...</option>
+                        </select>
+                        <i class="fas fa-chevron-down absolute right-4 top-3.5 text-slate-400 pointer-events-none"></i>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-2 block">Exigencia</label>
+                    <div class="flex bg-slate-700 p-1 rounded-xl border-2 border-slate-600">
+                        <button id="mode-fluency" onclick="setCorrectionMode('fluency')" class="flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-[0_2px_0_0_#4338ca] transition-all">Fluidez</button>
+                        <button id="mode-grammar" onclick="setCorrectionMode('grammar')" class="flex-1 text-sm py-2 rounded-lg text-slate-400 hover:text-white font-bold transition-all">Gramática</button>
+                    </div>
+                </div>
+                
+                <div>
+                    <div class="flex justify-between items-end mb-2">
+                        <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Nuevas Palabras</label>
+                        <button onclick="localStorage.removeItem('speaking_pro_vocab'); renderVocabBank();" class="text-xs text-red-400 hover:text-red-300 font-bold p-1"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div id="vocab-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col relative bg-slate-900 w-full min-w-0">
+            <div class="md:hidden h-16 flex items-center justify-between px-4 border-b-2 border-slate-800 bg-slate-900 shrink-0 z-20 shadow-sm">
+                <div class="flex items-center gap-3">
+                    <a href="index.html" class="w-10 h-10 rounded-xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition"><i class="fas fa-arrow-left"></i></a>
+                    <span class="font-black text-white text-lg truncate" id="mobile-role-display">Speaking Pro</span>
+                </div>
+                <button onclick="toggleMobileMenu()" class="w-10 h-10 rounded-xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-400 hover:text-white active:scale-95 transition">
+                    <i class="fas fa-sliders-h text-lg"></i>
+                </button>
+            </div>
+
+            <div id="messages" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 z-10 pb-[160px] md:pb-48 scroll-smooth"></div>
+
+            <div class="absolute bottom-0 w-full p-3 md:p-6 z-20 bg-slate-900/95 backdrop-blur-md border-t-2 border-slate-800">
+                <div class="max-w-3xl mx-auto relative">
+
+                    <!-- PANEL EXCLUSIVO DEL MODO CHARLA LIBRE -->
+                    <div id="casual-transcript-panel">
+                        <div id="casual-transcript-placeholder" class="text-center">Habla cuando quieras… el micrófono captura todo sin pausas</div>
+                        <span id="casual-transcript-final"></span><span id="casual-transcript-interim"></span>
+                    </div>
+
+                    <!-- Live transcript flotante para modo práctica -->
+                    <div id="live-transcript" class="absolute -top-12 left-0 right-0 text-center text-slate-200 text-lg md:text-xl font-bold opacity-0 transition-opacity truncate px-4 pb-2 drop-shadow-lg pointer-events-none z-30"></div>
+
+                    <div id="mic-status" class="text-center h-7 mb-2 transition-all opacity-0 flex justify-center items-center gap-3">
+                        <span id="mic-status-label" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-[10px] md:text-xs font-extrabold uppercase tracking-widest">
+                            <i class="fas fa-satellite-dish animate-pulse"></i> <span id="mic-status-text">Escuchando</span>
+                        </span>
+                        <div id="mic-wave" class="flex items-center gap-[3px] h-4">
+                            <span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span>
+                        </div>
+                    </div>
+
+                    <div id="input-controls" class="flex items-center gap-2 md:gap-3 relative justify-center transition-all">
+                        <button id="micBtn" onclick="toggleMic()" title="Presionar para hablar">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+
+                        <!-- Botón de enviar exclusivo del modo Charla Libre (aparece con texto acumulado) -->
+                        <button id="casual-send-btn" onclick="sendCasualAccumulated()"
+                                class="shrink-0 w-14 h-14 rounded-2xl bg-emerald-500 text-white shadow-[0_4px_0_0_#059669] active:translate-y-1 active:shadow-none transition-all items-center justify-center gap-2 font-black text-sm">
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+
+                        <div id="textInputWrapper" class="flex-1 min-w-0 relative">
+                            <input type="text" id="textInput" placeholder="Toca el micro o escribe aquí..." onkeypress="handleEnter(event)"
+                                   class="w-full bg-slate-800 text-white font-medium px-4 py-3 md:px-5 md:py-4 rounded-2xl outline-none border-2 border-slate-700 focus:border-indigo-500 transition-all text-sm md:text-base placeholder-slate-500">
+                        </div>
+
+                        <button id="sendBtn" onclick="sendText()"
+                                class="shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-2xl bg-indigo-500 text-white shadow-[0_4px_0_0_#4338ca] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center">
+                            <i id="send-icon" class="fas fa-paper-plane text-lg md:text-xl"></i>
+                            <i id="send-spinner" class="fas fa-circle-notch fa-spin text-lg md:text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="stop-audio-btn" onclick="stopAudio()" class="absolute top-20 right-4 md:top-6 md:right-6 z-30 hidden bg-red-500 text-white w-10 h-10 md:w-12 md:h-12 rounded-full shadow-lg border-2 border-red-600 active:scale-95 transition flex items-center justify-center">
+                <i class="fas fa-stop text-lg md:text-xl"></i>
+            </button>
+            <div id="mic-permission-banner"></div>
+        </main>
+    </div>
+
+    <!-- ═══ Tooltip de Vocabulario ═══ -->
+    <div id="word-tooltip" class="tt-hidden">
+        <div class="flex items-start justify-between mb-3">
+            <div>
+                <span id="tt-word" class="text-yellow-400 font-black text-xl leading-tight block"></span>
+                <span class="text-[10px] text-yellow-600 font-black uppercase tracking-widest">palabra clave</span>
+            </div>
+            <div class="flex items-center gap-2 ml-3 mt-0.5">
+                <button onclick="speakTooltipWord()" title="Escuchar pronunciación"
+                        class="w-9 h-9 rounded-xl bg-yellow-500/20 hover:bg-yellow-500/40 border-2 border-yellow-500/40 text-yellow-400 flex items-center justify-center transition-all active:scale-95">
+                    <i class="fas fa-volume-up text-sm"></i>
+                </button>
+                <button onclick="hideTooltip()"
+                        class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-white flex items-center justify-center text-xs transition-all">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        <div class="space-y-2">
+            <div class="bg-slate-800/80 rounded-xl p-3 border border-slate-700">
+                <span class="text-[10px] text-slate-500 font-black uppercase tracking-widest block mb-1">📖 Significado</span>
+                <p id="tt-meaning" class="text-white text-sm font-semibold leading-snug"></p>
+            </div>
+            <div class="bg-indigo-900/40 rounded-xl p-3 border border-indigo-700/40">
+                <span class="text-[10px] text-indigo-400 font-black uppercase tracking-widest block mb-1">🇪🇸 Traducción</span>
+                <p id="tt-translation" class="text-indigo-200 text-sm font-bold leading-snug"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MODES = [
+            {
+                id: 'casual',
+                label: 'Charla Casual & Libre',
+                icon: 'fa-coffee',
+                desc: 'Conversación libre sobre cualquier tema. Sin guión, solo fluye.',
+                system: `You are a close friend hanging out. Talk about anything — movies, plans, random stuff, life updates. Use slang, be funny, keep it real. Ask follow-up questions. Never be stiff or formal. Keep the conversation going naturally.`
+            },
+            {
+                id: 'practice',
+                label: 'Práctica Conversacional',
+                icon: 'fa-microphone-alt',
+                desc: 'Inmersión total de voz. Escucha el escenario y practica hablando con el texto sugerido.',
+                system: `You are a conversational coach running a real-world English practice scenario. 
+FIRST MESSAGE: Ask the user what scenario they want to practice (job interview, ordering at a restaurant, meeting someone new, travel situation, etc.). Be warm and encouraging.
+AFTER THEY TELL YOU: Immediately start the scenario. Stay fully in character. Each turn, include a "suggested_response" — a short, natural, realistic English phrase (1-2 sentences) the user could say next to keep the conversation going. Make it fit the exact moment in the conversation, like a real script they can practice saying out loud.`
+            }
+        ];
+
+        let state = {
+            mode: MODES[0],
+            level: 'intermediate',
+            voice: null,
+            history: [],
+            isListening: false,
+            correctionMode: 'fluency',
+            practiceStarted: false,
+            currentSuggested: null,
+            grammarRetry: null   // { active, correction, errorSnippet, attempts, pendingAiData, pendingUserText, pendingUserMsgId }
+        };
+
+        const BASE_SYSTEM_PROMPT = `
+You are a natural, human-sounding English conversation partner — NOT a tutor, NOT a robot.
+SPEAK LIKE A REAL PERSON: Use contractions, filler words, casual openers, and short punchy sentences. Never sound formal.
+KEEP IT SHORT: Your "reply" field should be 1-3 sentences max.
+STT RULE: The user speaks via Speech-to-Text that misinterprets Hispanic accents. Sound it out phonetically to deduce intent.
+VOCABULARY RULE: In your "reply" text, naturally wrap 1-2 interesting or useful English words/phrases in double brackets with this format: [[word or phrase|English meaning or usage note|Spanish translation]]. Example: "That sounds totally [[lit|extremely cool or exciting|genial/increíble]] — you gotta try it!"
+GRAMMAR MODE RULE: When [MODE: GRAMMAR] is active and the user makes a grammar or phrasing mistake, set error_snippet to the EXACT wrong phrase the user said (copy it verbatim), and correction_snippet to the corrected replacement phrase ONLY (not the full sentence). Example: if user said "I goes to the store", error_snippet="I goes" and correction_snippet="I go". If no error, set both to null.
+OUTPUT FORMAT (JSON ONLY):
+{
+  "clarity_score": 1-10,
+  "is_accepted": boolean,
+  "refusal_message": "string",
+  "error_snippet": "string or null",
+  "correction_snippet": "string or null",
+  "better_way": "string or null",
+  "reply": "string",
+  "translation": "string",
+  "hints": ["string"],
+  "suggested_response": null
+}`;
+
+        const PRACTICE_SYSTEM_PROMPT = `
+You are a conversational coach running real-world English practice scenarios.
+SPEAK LIKE A REAL PERSON in your "reply". KEEP "reply" SHORT: 1-3 sentences max.
+STT RULE: The user speaks via Speech-to-Text that misinterprets Hispanic accents. Sound it out phonetically to deduce intent.
+SUGGESTED RESPONSE RULE: ALWAYS include a "suggested_response" — a natural 1-2 sentence English phrase the user could realistically say next. It must fit the exact moment in the conversation.
+OUTPUT FORMAT (JSON ONLY):
+{
+  "clarity_score": 1-10,
+  "is_accepted": boolean,
+  "refusal_message": "string",
+  "error_snippet": "string or null",
+  "correction_snippet": "string or null",
+  "better_way": "string or null",
+  "reply": "Your in-character response (1-3 sentences)",
+  "translation": "Spanish translation of reply",
+  "hints": ["Short hint 1"],
+  "suggested_response": "A natural English phrase the user could say next"
+}`;
+
+        /* ═══════════════════════════════════════
+           TOOLTIP DE VOCABULARIO
+        ═══════════════════════════════════════ */
+        let tooltipCurrentWord = '';
+        let tooltipHideTimer = null;
+
+        function parseHighlightWords(text) {
+            // Converts [[word|meaning|translation]] → highlight-word spans
+            return text.replace(/\[\[([^\|\]]+)\|([^\|\]]+)\|([^\]]+)\]\]/g, (match, word, meaning, translation) => {
+                const safeWord = word.replace(/"/g, '&quot;');
+                const safeMeaning = meaning.replace(/"/g, '&quot;');
+                const safeTrans = translation.replace(/"/g, '&quot;');
+                return `<span class="highlight-word" data-word="${safeWord}" data-meaning="${safeMeaning}" data-translation="${safeTrans}">${safeWord}</span>`;
+            });
+        }
+
+        function showWordTooltip(el) {
+            clearTimeout(tooltipHideTimer);
+            const word = el.getAttribute('data-word') || el.innerText.trim();
+            const meaning = el.getAttribute('data-meaning') || '—';
+            const translation = el.getAttribute('data-translation') || '—';
+            tooltipCurrentWord = word;
+
+            document.getElementById('tt-word').textContent = word;
+            document.getElementById('tt-meaning').textContent = meaning;
+            document.getElementById('tt-translation').textContent = translation;
+
+            const tt = document.getElementById('word-tooltip');
+            tt.classList.remove('tt-hidden');
+            tt.classList.add('tt-visible');
+            positionTooltip(el);
+            speakTooltipWord();
+        }
+
+        function positionTooltip(el) {
+            const tt = document.getElementById('word-tooltip');
+            const rect = el.getBoundingClientRect();
+            const ttW = 290, ttH = 185;
+            let left = rect.left;
+            let top = rect.bottom + 10;
+            if (left + ttW > window.innerWidth - 12) left = window.innerWidth - ttW - 12;
+            if (left < 8) left = 8;
+            if (top + ttH > window.innerHeight - 12) top = rect.top - ttH - 10;
+            if (top < 8) top = 8;
+            tt.style.left = left + 'px';
+            tt.style.top = top + 'px';
+        }
+
+        function hideTooltip() {
+            const tt = document.getElementById('word-tooltip');
+            tt.classList.remove('tt-visible');
+            tt.classList.add('tt-hidden');
+        }
+
+        function speakTooltipWord() {
+            if (!tooltipCurrentWord) return;
+            if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(tooltipCurrentWord);
+            utter.lang = 'en-US';
+            if (state && state.voice) utter.voice = state.voice;
+            window.speechSynthesis.speak(utter);
+        }
+
+        // Click / tap handler
+        document.addEventListener('click', function(e) {
+            const wordEl = e.target.closest('.highlight-word');
+            if (wordEl) {
+                e.stopPropagation();
+                showWordTooltip(wordEl);
+                return;
+            }
+            const tt = document.getElementById('word-tooltip');
+            if (tt && !tt.contains(e.target)) hideTooltip();
+        });
+
+        // Hover handler (desktop)
+        document.addEventListener('mouseover', function(e) {
+            const wordEl = e.target.closest('.highlight-word');
+            if (wordEl) {
+                clearTimeout(tooltipHideTimer);
+                wordEl._tipTimer = setTimeout(() => showWordTooltip(wordEl), 320);
+            }
+        });
+        document.addEventListener('mouseout', function(e) {
+            const wordEl = e.target.closest('.highlight-word');
+            if (wordEl) {
+                clearTimeout(wordEl._tipTimer);
+            }
+        });
+
+        function sendToGym(mistake, correction, type = 'speaking') {
+            let errorVault = JSON.parse(localStorage.getItem('speaking_pro_errors')) || [];
+            if (!errorVault.find(e => e.mistake === mistake)) {
+                errorVault.push({
+                    id: 'err_' + Date.now(),
+                    mistake: mistake,
+                    correction: correction,
+                    type: type,
+                    repsCompleted: 0,
+                    targetReps: 3
+                });
+                localStorage.setItem('speaking_pro_errors', JSON.stringify(errorVault));
+            }
+        }
+
+        function initModeSelector() {
+            const container = document.getElementById('mode-selector');
+            container.innerHTML = MODES.map((mode, idx) => `
+                <div onclick="selectMode(${idx})" id="mode-card-${idx}" 
+                     class="mode-card cursor-pointer bg-slate-700 p-4 rounded-2xl border-2 transition-all ${idx === 0 ? 'selected border-indigo-500 bg-indigo-500/10' : 'border-slate-600'}">
+                    <div class="flex items-center gap-3 mb-1.5">
+                        <div class="w-9 h-9 rounded-xl ${idx === 0 ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-600 text-slate-400'} flex items-center justify-center text-base border-2 ${idx === 0 ? 'border-indigo-500/40' : 'border-slate-500'}" id="mode-icon-${idx}">
+                            <i class="fas ${mode.icon}"></i>
+                        </div>
+                        <span class="text-sm font-black text-white">${mode.label}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 font-semibold leading-snug pl-12">${mode.desc}</p>
+                </div>
+            `).join('');
+            state.mode = MODES[0];
+        }
+        initModeSelector();
+
+        function selectMode(index) {
+            state.mode = MODES[index];
+            state.practiceStarted = false;
+            MODES.forEach((_, i) => {
+                const card = document.getElementById(`mode-card-${i}`);
+                const icon = document.getElementById(`mode-icon-${i}`);
+                if (i === index) {
+                    card.classList.add('selected', 'border-indigo-500');
+                    card.classList.remove('border-slate-600');
+                    icon.className = `w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-base border-2 border-indigo-500/40`;
+                } else {
+                    card.classList.remove('selected', 'border-indigo-500');
+                    card.classList.add('border-slate-600');
+                    icon.className = `w-9 h-9 rounded-xl bg-slate-600 text-slate-400 flex items-center justify-center text-base border-2 border-slate-500`;
+                }
+            });
+        }
+
+        function setLevel(level) {
+            state.level = level;
+            ['beginner', 'intermediate', 'advanced'].forEach(l => {
+                const btn = document.getElementById('lvl-' + l);
+                if (l === level) {
+                    btn.className = "flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold transition-all shadow-[0_2px_0_0_#4338ca]";
+                } else {
+                    btn.className = "flex-1 text-sm py-2 rounded-lg text-slate-300 hover:text-white font-bold transition-all";
+                }
+            });
+        }
+
+        function setCorrectionMode(mode) {
+            state.correctionMode = mode;
+            const btnFluency = document.getElementById('mode-fluency');
+            const btnGrammar = document.getElementById('mode-grammar');
+            if (mode === 'fluency') {
+                btnFluency.className = "flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-[0_2px_0_0_#4338ca] transition-all";
+                btnGrammar.className = "flex-1 text-sm py-2 rounded-lg text-slate-400 hover:text-white font-bold transition-all";
+            } else {
+                btnGrammar.className = "flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-[0_2px_0_0_#4338ca] transition-all";
+                btnFluency.className = "flex-1 text-sm py-2 rounded-lg text-slate-400 hover:text-white font-bold transition-all";
+            }
+        }
+
+        const synth = window.speechSynthesis;
+        let availableVoices = [];
+        
+        function loadVoices() {
+            let voices = synth.getVoices().filter(v => v.lang.startsWith('en'));
+            if (voices.length === 0) return;
+            availableVoices = voices.sort((a,b) => {
+                const aGood = /(Natural|Google|Online|Premium|Siri|Samantha)/i.test(a.name);
+                const bGood = /(Natural|Google|Online|Premium|Siri|Samantha)/i.test(b.name);
+                const aBad = /(David|Zira|Mark)/i.test(a.name);
+                const bBad = /(David|Zira|Mark)/i.test(b.name);
+                if (aGood && !bGood) return -1;
+                if (!aGood && bGood) return 1;
+                if (!aBad && bBad) return -1;
+                if (aBad && !bBad) return 1;
+                return 0;
+            });
+            const select = document.getElementById('voice-select');
+            select.innerHTML = availableVoices.map((v, i) => {
+                let cleanName = v.name.replace(/Microsoft|Google|English|United States/ig, '').replace(/[()]/g, '').trim() || v.name;
+                const flag = v.lang.includes('GB') || v.lang.includes('UK') ? '🇬🇧' : '🇺🇸';
+                const isPremium = /(Natural|Google|Online|Premium|Siri)/i.test(v.name) ? '⭐ ' : '';
+                return `<option value="${i}">${flag} ${isPremium}${cleanName}</option>`;
+            }).join('');
+            if (!state.voice || !availableVoices.includes(state.voice)) {
+                state.voice = availableVoices[0];
+                select.value = "0";
+            }
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('sidebar');
+            const backdrop = document.getElementById('mobile-backdrop');
+            if (sidebar.classList.contains('-translate-x-full')) {
+                sidebar.classList.remove('-translate-x-full');
+                backdrop.classList.remove('hidden');
+                setTimeout(() => backdrop.classList.remove('opacity-0'), 10);
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                backdrop.classList.add('opacity-0');
+                setTimeout(() => backdrop.classList.add('hidden'), 300);
+            }
+        }
+
+        function changeVoice(index) {
+            state.voice = availableVoices[index];
+            const utter = new SpeechSynthesisUtterance("Testing voice. Let's practice!");
+            utter.voice = state.voice;
+            synth.cancel();
+            synth.speak(utter);
+        }
+
+        loadVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        /* ═══════════════════════════════════════
+           INICIO DE SESIÓN Y UI DINÁMICA
+        ═══════════════════════════════════════ */
+        async function validateAndStart() {
+            checkHttpsWarning();
+            const btn = document.getElementById('startBtn');
+            btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> Cargando...`;
+            document.getElementById('setup-overlay').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('setup-overlay').classList.add('hidden');
+                document.getElementById('app-layout').classList.remove('opacity-0', 'pointer-events-none');
+                startSession();
+            }, 300);
+        }
+
+        function startSession() {
+            state.practiceStarted = false;
+            state.currentSuggested = null;
+            document.getElementById('current-role-display').innerText = state.mode.label;
+            document.getElementById('mobile-role-display').innerText = state.mode.label;
+            document.getElementById('messages').innerHTML = ''; 
+            
+            const textInputWrapper = document.getElementById('textInputWrapper');
+            const sendBtn = document.getElementById('sendBtn');
+            const casualSendBtn = document.getElementById('casual-send-btn');
+            const casualPanel = document.getElementById('casual-transcript-panel');
+            const micBtn = document.getElementById('micBtn');
+            const liveT = document.getElementById('live-transcript');
+            const messages = document.getElementById('messages');
+
+            // Resetear estado de casual mode
+            if (state.isListening && recognition) {
+                state.isListening = false;
+                casualIsRestarting = false;
+                try { recognition.abort(); } catch(e) {}
+            }
+            casualFinalTranscript = '';
+            casualIsRestarting = false;
+            if (liveT) liveT.style.opacity = '0';
+
+            // Ajustes Dinámicos de la Interfaz
+            if (state.mode.id === 'practice') {
+                textInputWrapper.style.display = 'none';
+                sendBtn.style.display = 'none';
+                casualSendBtn.classList.remove('btn-visible');
+                casualPanel.classList.remove('panel-visible');
+                messages.style.paddingBottom = '';
+                micBtn.className = "shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-700 text-slate-300 border-4 border-slate-600 shadow-[0_6px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center text-3xl font-extrabold text-white z-40";
+                
+                document.getElementById('messages').innerHTML = `
+                    <div class="flex flex-col items-center justify-center w-full h-full mt-32 msg-enter">
+                        <div class="w-20 h-20 rounded-full bg-indigo-500/20 flex items-center justify-center mb-4 border-2 border-indigo-500/40">
+                            <i class="fas fa-headphones-alt text-indigo-400 text-4xl animate-bounce"></i>
+                        </div>
+                        <p class="text-indigo-300 font-bold text-lg">Modo Inmersión Activado</p>
+                        <p class="text-slate-500 font-semibold text-sm mt-2">Escucha con atención</p>
+                    </div>`;
+            } else {
+                // MODO CHARLA LIBRE: solo micrófono, sin caja de texto
+                textInputWrapper.style.display = 'none';
+                sendBtn.style.display = 'none';
+                casualSendBtn.classList.remove('btn-visible');
+                casualPanel.classList.remove('panel-visible');
+                micBtn.className = "shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-700 text-slate-300 border-4 border-slate-600 shadow-[0_6px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center text-3xl font-extrabold text-white z-40";
+                // Resetear transcripción
+                document.getElementById('casual-transcript-final').innerText = '';
+                document.getElementById('casual-transcript-interim').innerText = '';
+                document.getElementById('casual-transcript-placeholder').style.display = 'block';
+                // Rebuild recognition para casual mode
+                recognition = buildCasualRecognition();
+            }
+
+            const sysPrompt = state.mode.id === 'practice' ? PRACTICE_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
+            const instruction = `ROLE: ${state.mode.system}\nLEVEL: ${state.level}.`;
+            state.history = [{ role: "user", parts: [{ text: sysPrompt + "\n" + instruction }] }];
+
+            let greeting, greetingEs;
+            if (state.mode.id === 'casual') {
+                greeting = "Hey! What's up? What do you wanna talk about today?";
+                greetingEs = "¡Hola! ¿Qué hay de nuevo? ¿De qué quieres hablar hoy?";
+                addMessage(greeting, 'ai', greetingEs);
+            } else {
+                greeting = "Welcome to Conversational Practice! What scenario would you like to practice today? For example: a job interview, ordering at a restaurant, meeting someone new... anything goes!";
+            }
+
+            speak(greeting);
+            renderVocabBank();
+        }
+
+        /* ═══════════════════════════════════════
+           SIMILITUD DE TEXTOS (LEVENSHTEIN)
+        ═══════════════════════════════════════ */
+        function calculateSimilarity(str1, str2) {
+            let s1 = str1.toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
+            let s2 = str2.toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
+            if(s1 === s2) return 100;
+            if(!s1 || !s2) return 0;
+            
+            let costs = new Array();
+            for (let i = 0; i <= s1.length; i++) {
+                let lastValue = i;
+                for (let j = 0; j <= s2.length; j++) {
+                    if (i == 0) costs[j] = j;
+                    else {
+                        if (j > 0) {
+                            let newValue = costs[j - 1];
+                            if (s1.charAt(i - 1) != s2.charAt(j - 1))
+                                newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+                            costs[j - 1] = lastValue;
+                            lastValue = newValue;
+                        }
+                    }
+                }
+                if (i > 0) costs[s2.length] = lastValue;
+            }
+            let distance = costs[s2.length];
+            let maxLen = Math.max(s1.length, s2.length);
+            return Math.round(((maxLen - distance) / maxLen) * 100);
+        }
+
+        /* ═══════════════════════════════════════
+           MICRÓFONO — PUSH-TO-TALK Y TRANSCRIPCIÓN LIVE
+        ═══════════════════════════════════════ */
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let silenceTimer = null;
+        let micPermissionGranted = false;
+
+        // Variables exclusivas del modo Charla Libre
+        let casualFinalTranscript = '';  // texto acumulado entre todos los resultados finales
+        let casualIsRestarting = false;  // evita bucles de reinicio
+
+        // ── Retry automático para error 'network' en desktop ──
+        let networkRetryCount = 0;
+        const MAX_NETWORK_RETRIES = 3;
+
+        // ── Verificación de HTTPS (requerido por Chrome desktop para Web Speech API) ──
+        function checkHttpsWarning() {
+            if (location.protocol !== 'https:' &&
+                location.hostname !== 'localhost' &&
+                location.hostname !== '127.0.0.1') {
+                const banner = document.getElementById('mic-permission-banner');
+                if (banner) {
+                    banner.textContent = '⚠️ La app requiere HTTPS para el micrófono en desktop';
+                    banner.style.display = 'block';
+                }
+            }
+        }
+
+        /* ── UI del micrófono exclusiva de Charla Libre ── */
+        function setCasualMicUI(micState) {
+            const btn = document.getElementById('micBtn');
+            const status = document.getElementById('mic-status');
+            const statusText = document.getElementById('mic-status-text');
+            const statusLabel = document.getElementById('mic-status-label');
+            const panel = document.getElementById('casual-transcript-panel');
+            const placeholder = document.getElementById('casual-transcript-placeholder');
+
+            btn.classList.remove('mic-active', 'mic-reconnecting');
+
+            if (micState === 'listening') {
+                btn.classList.add('mic-active');
+                if (status) status.style.opacity = '1';
+                if (statusText) statusText.textContent = 'Escuchando';
+                if (statusLabel) {
+                    statusLabel.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-red-400 text-[10px] md:text-xs font-extrabold uppercase tracking-widest";
+                    statusLabel.innerHTML = '<i class="fas fa-satellite-dish animate-pulse"></i> <span id="mic-status-text">Escuchando</span>';
+                }
+                panel.classList.add('panel-visible');
+                if (placeholder) placeholder.style.display = 'block';
+
+            } else if (micState === 'reconnecting') {
+                btn.classList.add('mic-reconnecting');
+                if (status) status.style.opacity = '1';
+                if (statusLabel) {
+                    statusLabel.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-400 text-[10px] md:text-xs font-extrabold uppercase tracking-widest";
+                    statusLabel.innerHTML = '<i class="fas fa-sync-alt fa-spin"></i> <span id="mic-status-text">Reconectando…</span>';
+                }
+
+            } else if (micState === 'processing') {
+                btn.classList.remove('mic-active');
+                if (status) status.style.opacity = '1';
+                if (statusLabel) {
+                    statusLabel.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-[10px] md:text-xs font-extrabold uppercase tracking-widest";
+                    statusLabel.innerHTML = '<i class="fas fa-brain animate-pulse"></i> <span id="mic-status-text">Procesando…</span>';
+                }
+
+            } else { // idle
+                if (status) status.style.opacity = '0';
+                panel.classList.remove('panel-visible');
+                document.getElementById('casual-transcript-final').innerText = '';
+                document.getElementById('casual-transcript-interim').innerText = '';
+                if (placeholder) placeholder.style.display = 'block';
+                document.getElementById('casual-send-btn').classList.remove('btn-visible');
+            }
+        }
+
+        /* ── Actualiza el panel de transcript en tiempo real ── */
+        function updateCasualTranscript(finalText, interimText) {
+            const finalEl = document.getElementById('casual-transcript-final');
+            const interimEl = document.getElementById('casual-transcript-interim');
+            const placeholder = document.getElementById('casual-transcript-placeholder');
+            const sendBtn = document.getElementById('casual-send-btn');
+
+            if (finalEl) finalEl.innerText = finalText;
+            if (interimEl) interimEl.innerText = interimText;
+
+            const hasContent = finalText.trim() || interimText.trim();
+            if (placeholder) placeholder.style.display = hasContent ? 'none' : 'block';
+
+            // Mostrar botón de enviar manual si hay texto final acumulado
+            if (sendBtn) {
+                if (finalText.trim()) sendBtn.classList.add('btn-visible');
+                else sendBtn.classList.remove('btn-visible');
+            }
+
+            // Auto-scroll del panel
+            const panel = document.getElementById('casual-transcript-panel');
+            if (panel) panel.scrollTop = panel.scrollHeight;
+        }
+
+        /* ── Envía el texto acumulado manualmente ── */
+        function sendCasualAccumulated() {
+    if (state.isListening) {
+        // En lugar de forzar un corte brusco, detenemos el micro.
+        // El evento 'onend' recogerá el texto con mejor precisión.
+        recognition.stop();
+    } else {
+        const text = casualFinalTranscript.trim();
+        if (text) {
+            casualFinalTranscript = '';
+            updateCasualTranscript('', '');
+            setCasualMicUI('processing');
+            sendText(text);
+        }
+    }
+}
+
+        /* ── Recognition engine para Charla Libre: captura continua sin pausas ── */
+function buildCasualRecognition() {
+    if (!SpeechRecognition) return null;
+    const r = new SpeechRecognition();
+    
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    // En desktop: continuous=true evita los múltiples handshakes con Google que
+    // causan el error 'network'. En móvil se mantiene false por compatibilidad.
+    r.continuous = !isMobile;
+    r.interimResults = true;  
+    r.lang = 'en-US';
+    r.maxAlternatives = 1;
+
+    r.onstart = () => {
+        state.isListening = true;
+        setCasualMicUI('listening');
+        stopAudio();
+    };
+
+    r.onresult = (event) => {
+        networkRetryCount = 0; // Si hay resultado, la conexión funciona — resetear contador
+        let interimText = '';
+        let newFinalText = '';
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const result = event.results[i];
+            if (result.isFinal) {
+                newFinalText += result[0].transcript;
+            } else {
+                interimText += result[0].transcript;
+            }
+        }
+
+        if (newFinalText) {
+            casualFinalTranscript += newFinalText;
+            if (!casualFinalTranscript.endsWith(' ')) {
+                casualFinalTranscript += ' ';
+            }
+        }
+
+        updateCasualTranscript(casualFinalTranscript, interimText);
+
+        clearTimeout(silenceTimer);
+        
+     // 🔥 LA MAGIA DE TU VERSIÓN VIEJA 🔥
+        if (newFinalText) {
+            // Aumentado a 7 segundos para dejarte pensar si ya terminaste una frase
+            silenceTimer = setTimeout(() => { 
+                if (state.isListening) recognition.stop(); 
+            }, 7000); 
+        } else {
+            // Aumentado a 10 segundos de pura tolerancia
+            silenceTimer = setTimeout(() => { 
+                if (state.isListening && (casualFinalTranscript.trim() || interimText.trim())) {
+                    recognition.stop(); 
+                }
+            }, 10000); 
+        }
+    };
+
+    r.onend = () => {
+        state.isListening = false;
+        clearTimeout(silenceTimer);
+        
+        const text = casualFinalTranscript.trim();
+        if (text) {
+            casualFinalTranscript = '';
+            updateCasualTranscript('', '');
+            setCasualMicUI('processing');
+            // Se envía de forma limpia, conservando tu pronunciación original
+            sendText(text); 
+        } else {
+            setCasualMicUI('idle');
+        }
+    };
+
+   r.onerror = (event) => {
+    state.isListening = false;
+    clearTimeout(silenceTimer);
+
+    if (event.error === 'not-allowed') {
+        networkRetryCount = 0;
+        showMicError('Permiso denegado. Permite el micrófono en la configuración del navegador.');
+        micPermissionGranted = false;
+        setCasualMicUI('idle');
+
+    } else if (event.error === 'network') {
+        // En Chrome desktop, 'network' puede ser intermitente — reintentar automáticamente
+        if (networkRetryCount < MAX_NETWORK_RETRIES) {
+            networkRetryCount++;
+            setCasualMicUI('reconnecting');
+            // Espera escalonada: 800ms → 1600ms → 2400ms
+            setTimeout(() => {
+                recognition = buildCasualRecognition();
+                try { recognition.start(); }
+                catch(e) { setCasualMicUI('idle'); }
+            }, 800 * networkRetryCount);
+        } else {
+            // Agotados los reintentos — informar al usuario
+            networkRetryCount = 0;
+            const isHttps = location.protocol === 'https:' ||
+                            location.hostname === 'localhost' ||
+                            location.hostname === '127.0.0.1';
+            showMicError(isHttps
+                ? 'Error de red persistente. Comprueba tu conexión a internet.'
+                : '⚠️ Se requiere HTTPS para el micrófono en desktop.');
+            setCasualMicUI('idle');
+        }
+
+    } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        // no-speech y aborted son normales; los demás sí mostrar
+        showMicError(`Error de micrófono: ${event.error}`);
+        setCasualMicUI('idle');
+    } else {
+        setCasualMicUI('idle');
+    }
+};
+
+    return r;
+}
+
+        function showMicError(msg) {
+            const banner = document.getElementById('mic-permission-banner');
+            banner.textContent = '🎙️ ' + msg;
+            banner.style.display = 'block';
+            clearTimeout(banner._timer);
+            banner._timer = setTimeout(() => { banner.style.display = 'none'; }, 4000);
+        }
+
+        function setMicUI(active) {
+            const btn = document.getElementById('micBtn');
+            const status = document.getElementById('mic-status');
+            const liveT = document.getElementById('live-transcript');
+            const textInput = document.getElementById('textInput');
+
+            if (active) {
+                btn.classList.add('mic-active');
+                btn.classList.remove('mic-reconnecting');
+                if (status) status.style.opacity = '1';
+                if (textInput) textInput.placeholder = 'Escuchando… habla ahora';
+            } else {
+                btn.classList.remove('mic-active', 'mic-reconnecting');
+                if (status) status.style.opacity = '0';
+                if (liveT) liveT.style.opacity = '0';
+                if (textInput) textInput.placeholder = 'Toca el micro o escribe aquí...';
+            }
+        }
+
+        function buildRecognition() {
+            if (!SpeechRecognition) return null;
+            const r = new SpeechRecognition();
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            r.continuous = false;
+            r.interimResults = true;
+            r.lang = 'en-US';
+            r.maxAlternatives = 1;
+
+            r.onstart = () => {
+                state.isListening = true;
+                setMicUI(true);
+                document.getElementById('textInput').value = '';
+                const liveT = document.getElementById('live-transcript');
+                if (liveT) {
+                    liveT.innerText = '';
+                    liveT.style.opacity = '0';
+                }
+                stopAudio();
+            };
+
+            r.onresult = (event) => {
+                let interim = '', final = '';
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    if (result.isFinal) final += result[0].transcript;
+                    else interim += result[0].transcript;
+                }
+                const currentText = final + interim;
+                document.getElementById('textInput').value = currentText;
+                
+                // Actualizar Texto en Tiempo Real (Live Transcript)
+                const liveT = document.getElementById('live-transcript');
+                if (liveT) {
+                    liveT.innerText = currentText;
+                    if (currentText.trim() !== '') {
+                        liveT.style.opacity = '1';
+                    }
+                }
+
+                clearTimeout(silenceTimer);
+                if (final) {
+                    silenceTimer = setTimeout(() => { if (state.isListening) recognition.stop(); }, 7000);
+                } else {
+                    silenceTimer = setTimeout(() => { if (state.isListening && document.getElementById('textInput').value.trim()) recognition.stop(); }, 10000);
+                }
+            };
+
+            r.onend = () => {
+                state.isListening = false;
+                setMicUI(false);
+                clearTimeout(silenceTimer);
+                const val = document.getElementById('textInput').value.trim();
+                if (!val) return;
+
+                if (state.mode.id === 'practice' && state.practiceStarted && state.currentSuggested) {
+                    const similarityPct = calculateSimilarity(val, state.currentSuggested);
+                    
+                    if (similarityPct < 60) {
+                        showPronunciationRetry(similarityPct, state.currentSuggested, val);
+                        document.getElementById('textInput').value = '';
+                        return; 
+                    } else {
+                        showPronunciationSuccess(similarityPct);
+                        document.getElementById('textInput').value = '';
+                        setTimeout(() => handleUserMessage(val), 1500);
+                        return;
+                    }
+                }
+                
+                sendText(val); 
+            };
+
+            r.onerror = (event) => {
+                state.isListening = false;
+                setMicUI(false);
+                clearTimeout(silenceTimer);
+                if (event.error === 'not-allowed') showMicError('Permiso denegado.');
+                recognition = buildRecognition();
+            };
+            return r;
+        }
+
+        if (SpeechRecognition) recognition = buildRecognition();
+
+        async function toggleMic() {
+            if (!SpeechRecognition) { showMicError('Tu navegador no soporta voz.'); return; }
+
+            // ── MODO CHARLA LIBRE: escucha continua, toggle on/off ──
+            if (state.mode.id === 'casual') {
+                if (state.isListening) {
+                    // El usuario pulsa para DETENER → forzar envío
+                    state.isListening = false;
+                    casualIsRestarting = false;
+                    try { recognition.stop(); } catch(e) {}
+                    // El texto se envía desde el handler onend
+                    return;
+                }
+                // Pedir permiso si es la primera vez
+                if (!micPermissionGranted) {
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        stream.getTracks().forEach(t => t.stop());
+                        micPermissionGranted = true;
+                    } catch (err) {
+                        showMicError('Permiso de micrófono denegado.'); return;
+                    }
+                }
+                // Limpiar transcript previo y arrancar
+                casualFinalTranscript = '';
+                networkRetryCount = 0; // Reset al iniciar manualmente
+                updateCasualTranscript('', '');
+                setCasualMicUI('listening');
+                recognition = buildCasualRecognition();
+                try { recognition.start(); } catch (e) {
+                    state.isListening = false;
+                    setCasualMicUI('idle');
+                    showMicError('No se pudo iniciar el micrófono.');
+                }
+                return;
+            }
+
+            // ── MODO PRÁCTICA: comportamiento original sin cambios ──
+            if (state.isListening) {
+                clearTimeout(silenceTimer);
+                recognition.stop();
+                return;
+            }
+            if (!micPermissionGranted) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    stream.getTracks().forEach(t => t.stop());
+                    micPermissionGranted = true;
+                } catch (err) {
+                    showMicError('Permiso de micrófono denegado.'); return;
+                }
+            }
+            recognition = buildRecognition();
+            try { recognition.start(); } catch (e) { state.isListening = false; setMicUI(false); }
+        }
+
+        /* ── Usa un hint: en práctica escribe en input; en charla libre lo envía directo ── */
+        function useHint(hint) {
+            if (state.mode.id === 'casual') {
+                handleUserMessage(hint);
+            } else {
+                const input = document.getElementById('textInput');
+                if (input) { input.value = hint; input.focus(); }
+            }
+        }
+
+        /* ═══════════════════════════════════════
+           MODO GRAMÁTICA — CORRECCIÓN Y REINTENTO
+        ═══════════════════════════════════════ */
+        function showGrammarCorrectionCard(errorSnippet, correction, attempts) {
+            document.getElementById('grammar-retry-card')?.remove();
+
+            const tipData = [
+                { msg: 'La forma correcta de decirla será esta:', icon: 'fa-graduation-cap', color: 'amber' },
+                { msg: 'Estás cerca — intenta con esto:', icon: 'fa-bullseye', color: 'orange' },
+                { msg: '¡Casi! Repite exactamente esto:', icon: 'fa-fire', color: 'red' }
+            ];
+            const tip = tipData[Math.min(attempts, tipData.length - 1)];
+
+            // Pronunciación palabra por palabra (aparece en intento 2+)
+            let pronunciationHtml = '';
+            if (attempts >= 2) {
+                const words = correction.replace(/[.,!?]/g, '').split(/\s+/).filter(Boolean);
+                pronunciationHtml = `
+                    <div class="mt-3 pt-3 border-t border-slate-600/60">
+                        <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">
+                            <i class="fas fa-volume-up text-indigo-400 mr-1"></i> Escucha cada palabra:
+                        </p>
+                        <div class="flex flex-wrap gap-1.5">
+                            ${words.map(w => `
+                                <button onclick="speakSingleWord('${w.replace(/'/g,"\\'")}' )"
+                                        class="bg-slate-700 hover:bg-indigo-500/30 border border-slate-600 hover:border-indigo-500/50 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg transition-all active:scale-95 flex items-center gap-1.5">
+                                    <i class="fas fa-volume-up text-[9px] text-indigo-400"></i>${w}
+                                </button>`).join('')}
+                        </div>
+                        <p class="text-[10px] text-slate-500 font-semibold mt-2 italic">Toca cada palabra para escuchar cómo suena.</p>
+                    </div>`;
+            }
+
+            const div = document.createElement('div');
+            div.id = 'grammar-retry-card';
+            div.className = 'msg-enter flex justify-start pl-0 mb-3 relative z-20 w-full';
+            div.innerHTML = `
+                <div class="bg-${tip.color}-500/10 border-2 border-${tip.color}-500/35 px-4 py-3 rounded-2xl w-full max-w-[90%]">
+                    <div class="flex items-center gap-2 mb-3">
+                        <div class="w-7 h-7 rounded-xl bg-${tip.color}-500/20 flex items-center justify-center border border-${tip.color}-500/40">
+                            <i class="fas ${tip.icon} text-${tip.color}-400 text-xs"></i>
+                        </div>
+                        <span class="text-xs font-black text-${tip.color}-400 uppercase tracking-wider">${tip.msg}</span>
+                    </div>
+
+                    <div class="flex flex-col gap-2 mb-3">
+                        <div class="bg-red-500/10 border border-red-500/30 rounded-xl px-3 py-2">
+                            <p class="text-[9px] text-red-400 font-black uppercase tracking-widest mb-0.5">❌ Dijiste:</p>
+                            <p class="text-sm font-bold text-red-300 line-through decoration-red-500/70">"${errorSnippet}"</p>
+                        </div>
+                        <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2">
+                            <p class="text-[9px] text-emerald-400 font-black uppercase tracking-widest mb-0.5">✅ Di esto:</p>
+                            <p class="text-xl font-black text-emerald-300 leading-snug">"${correction}"</p>
+                        </div>
+                    </div>
+
+                    ${pronunciationHtml}
+
+                    <button onclick="speakGrammarCorrection()"
+                            class="mt-3 w-full bg-slate-700/80 hover:bg-slate-600 border border-slate-600 text-slate-300 font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95">
+                        <i class="fas fa-volume-up text-indigo-400"></i> Escuchar pronunciación correcta
+                    </button>
+                    <p class="text-center text-[10px] text-slate-500 font-bold mt-2">
+                        🎙️ Toca el micrófono y repite la frase en verde
+                    </p>
+                </div>`;
+
+            document.getElementById('messages').appendChild(div);
+            scrollToBottom();
+            // Auto-speak the correction on first attempt
+            if (attempts === 0) setTimeout(() => speak(correction), 400);
+        }
+
+        function speakGrammarCorrection() {
+            if (state.grammarRetry) speak(state.grammarRetry.correction);
+        }
+
+        function speakSingleWord(word) {
+            if (synth.speaking) synth.cancel();
+            const utter = new SpeechSynthesisUtterance(word);
+            utter.lang = 'en-US';
+            if (state.voice) utter.voice = state.voice;
+            synth.speak(utter);
+        }
+
+        function showGrammarSuccess() {
+            const div = document.createElement('div');
+            div.className = 'msg-enter flex justify-center w-full mb-2';
+            div.innerHTML = `
+                <div class="bg-emerald-500/10 border-2 border-emerald-500/40 text-emerald-300 px-5 py-2.5 rounded-2xl flex items-center gap-2 font-black text-sm">
+                    <i class="fas fa-check-circle text-emerald-400 text-lg"></i>
+                    ¡Perfecto! Eso suena mucho mejor 🎉
+                </div>`;
+            document.getElementById('messages').appendChild(div);
+            scrollToBottom();
+        }
+
+        async function handleGrammarRetryAttempt(text) {
+            if (!state.grammarRetry) return;
+            const retry = state.grammarRetry;
+            const similarity = calculateSimilarity(text, retry.correction);
+
+            // Add user's retry bubble
+            const userMsgId = addMessage(text, 'user');
+
+            if (similarity >= 62) {
+                // ✅ Correcto — mostrar éxito y continuar conversación
+                document.getElementById('grammar-retry-card')?.remove();
+                showGrammarSuccess();
+                const aiData = retry.pendingAiData;
+                state.grammarRetry = null;
+
+                // Push al historial con las entradas guardadas
+                state.history.push(retry.historyUser);
+                state.history.push(retry.historyModel);
+
+                setTimeout(() => {
+                    const rawReply = aiData.reply;
+                    const parsedReply = parseHighlightWords(rawReply);
+                    addMessage(parsedReply, 'ai', aiData.translation, aiData.hints, rawReply);
+                    speak(parsedReply);
+                    saveVocabulary(parsedReply);
+                    if (aiData.suggested_response) state.currentSuggested = aiData.suggested_response;
+                }, 900);
+            } else {
+                // ❌ Incorrecto — mostrar tarjeta actualizada con más ayuda
+                retry.attempts++;
+                // Highlight el error en la burbuja del usuario
+                const bubble = document.getElementById(`content-${userMsgId}`);
+                if (bubble) {
+                    bubble.innerHTML = `<span class="text-slate-300">${text}</span>
+                        <span class="block text-[10px] text-red-400 font-black mt-1 uppercase tracking-widest"><i class="fas fa-times-circle mr-0.5"></i> Intenta de nuevo</span>`;
+                }
+                showGrammarCorrectionCard(retry.errorSnippet, retry.correction, retry.attempts);
+            }
+        }
+
+        /* ═══════════════════════════════════════
+           CHAT Y API
+        ═══════════════════════════════════════ */
+        function sendText(overrideText) {
+            clearTimeout(silenceTimer);
+            if (state.isListening && recognition) recognition.stop();
+            
+            // En modo casual no hay input de texto — el texto viene del overrideText
+            const input = document.getElementById('textInput');
+            const txt = overrideText || (input ? input.value.trim() : '');
+            if (!txt) return;
+            if (input) input.value = '';
+            
+            // Limpiar panel de charla libre si estaba visible
+            if (state.mode.id === 'casual') {
+                setCasualMicUI('processing');
+                document.getElementById('casual-send-btn').classList.remove('btn-visible');
+            }
+            
+            handleUserMessage(txt);
+        }
+
+        function handleEnter(e) { if (e.key === 'Enter') sendText(); }
+
+        async function handleUserMessage(text) {
+            // ── Modo gramática: redirigir al manejador de reintento ──
+            if (state.grammarRetry && state.grammarRetry.active) {
+                handleGrammarRetryAttempt(text);
+                return;
+            }
+
+            const sendBtn = document.getElementById('sendBtn');
+            if (sendBtn) sendBtn.classList.add('is-loading', 'opacity-60', 'pointer-events-none');
+
+            let userMsgId, loadingId;
+            if (state.mode.id === 'casual') {
+                userMsgId = addMessage(text, 'user');
+                loadingId = showLoading();
+            } else {
+                document.getElementById('messages').innerHTML = ''; 
+                loadingId = showPracticeLoading(); 
+                if (!state.practiceStarted) state.practiceStarted = true;
+            }
+
+            try {
+                const modeInstruction = state.correctionMode === 'fluency' ? "[MODE: FLUENCY. Be forgiving, focus on communication not grammar]" : "[MODE: GRAMMAR. If the user makes ANY grammar or phrasing error, always provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement). Be encouraging.]";
+                const payload = [...state.history, { role: "user", parts: [{ text: text + " " + modeInstruction }] }];
+
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: payload })
+                });
+
+                removeLoading(loadingId);
+                const data = await res.json();
+
+                const rawContent = data.candidates[0].content.parts[0].text;
+                const cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+                let aiResponse = JSON.parse(cleanJson);
+
+                // History push delayed — only happens if conversation advances (grammar retry might intercept below)
+                const _historyUser = { role: "user", parts: [{ text: text }] };
+                const _historyModel = { role: "model", parts: [{ text: cleanJson }] };
+
+                if (state.mode.id === 'casual') {
+                    if (aiResponse.error_snippet && text.toLowerCase().includes(aiResponse.error_snippet.toLowerCase())) {
+                        const userBubble = document.getElementById(`content-${userMsgId}`);
+                        if (userBubble) {
+                            const regex = new RegExp(`(${aiResponse.error_snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                            userBubble.innerHTML = text.replace(regex, `<span class="bg-red-500/40 text-red-100 border-b-2 border-red-500 px-1 rounded inline-block">$1</span>`);
+                        }
+                    }
+
+                    // ── MODO GRAMÁTICA: bloquear conversación hasta que corrijan el error ──
+                    if (state.correctionMode === 'grammar' && aiResponse.error_snippet && aiResponse.correction_snippet) {
+                        state.grammarRetry = {
+                            active: true,
+                            correction: aiResponse.correction_snippet,
+                            errorSnippet: aiResponse.error_snippet,
+                            attempts: 0,
+                            pendingAiData: aiResponse,
+                            pendingUserText: text,
+                            pendingUserMsgId: userMsgId,
+                            historyUser: _historyUser,
+                            historyModel: _historyModel
+                        };
+                        showGrammarCorrectionCard(aiResponse.error_snippet, aiResponse.correction_snippet, 0);
+                        setCasualMicUI('idle');
+                        return; // No avanzar la conversación hasta corregir
+                    }
+
+                    // Sin error de gramática — avanzar normalmente y guardar historial
+                    state.history.push(_historyUser);
+                    state.history.push(_historyModel);
+
+                    const rawReply = aiResponse.reply;
+                    const parsedReply = parseHighlightWords(rawReply);
+                    addMessage(parsedReply, 'ai', aiResponse.translation, aiResponse.hints, rawReply);
+                    speak(parsedReply);
+                    saveVocabulary(parsedReply);
+                } else if (state.mode.id === 'practice') {
+                    // Guardar historial para modo práctica
+                    state.history.push(_historyUser);
+                    state.history.push(_historyModel);
+                    // Agregar el subtítulo de la IA antes de la sugerencia
+                    addAiSubtitle(aiResponse.reply);
+                }
+
+                // Para modo práctica: speak y save (casual ya los hizo arriba)
+                if (state.mode.id === 'practice') {
+                    speak(aiResponse.reply);
+                    saveVocabulary(aiResponse.reply);
+                }
+
+                if (aiResponse.suggested_response) {
+                    state.currentSuggested = aiResponse.suggested_response;
+                    if (state.mode.id === 'practice') {
+                        addSuggestedResponse(aiResponse.suggested_response);
+                    }
+                } else {
+                    state.currentSuggested = null;
+                }
+
+            } catch (err) {
+                removeLoading(loadingId);
+                if (state.mode.id === 'casual') {
+                    addMessage("Error de conexión.", 'system');
+                    setCasualMicUI('idle');
+                }
+            } finally {
+                if (sendBtn) sendBtn.classList.remove('is-loading', 'opacity-60', 'pointer-events-none');
+                // Restablecer panel de charla libre a estado idle después de la respuesta
+                if (state.mode.id === 'casual') {
+                    setCasualMicUI('idle');
+                }
+            }
+        }
+
+        /* ═══════════════════════════════════════
+           TARJETAS DE PRÁCTICA Y SUBTÍTULOS
+        ═══════════════════════════════════════ */
+        function addAiSubtitle(text) {
+            const div = document.createElement('div');
+            div.className = "msg-enter flex justify-center w-full mt-4 mb-2";
+            div.innerHTML = `
+                <div class="bg-indigo-900/40 backdrop-blur border-2 border-indigo-500/30 px-6 py-4 rounded-3xl max-w-lg text-center shadow-lg relative">
+                    <div class="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center border-4 border-slate-900">
+                        <i class="fas fa-robot text-white text-xs"></i>
+                    </div>
+                    <p class="text-lg font-bold text-indigo-100 mt-1">"${text}"</p>
+                </div>`;
+            document.getElementById('messages').appendChild(div);
+        }
+
+        function addSuggestedResponse(text) {
+            const div = document.createElement('div');
+            div.className = "suggested-card msg-enter flex justify-center w-full mt-8";
+            div.innerHTML = `
+                <div class="w-full max-w-md bg-gradient-to-br from-violet-500/10 to-indigo-500/10 border-2 border-violet-500/30 rounded-3xl p-6 text-center shadow-xl">
+                    <div class="flex items-center justify-center gap-2 mb-4">
+                        <i class="fas fa-comment-dots text-violet-400 text-xl"></i>
+                        <span class="text-xs font-black text-violet-400 uppercase tracking-widest">Lo que debes decir:</span>
+                    </div>
+                    <p class="text-2xl font-black text-white leading-tight mb-6">"${text}"</p>
+                    <button onclick="speakSuggested('${text.replace(/'/g, "\\'")}')" 
+                            class="w-full bg-violet-500/20 hover:bg-violet-500/30 border-2 border-violet-500/40 text-violet-300 font-bold text-sm py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fas fa-volume-up"></i> Escuchar pronunciación
+                    </button>
+                </div>`;
+            document.getElementById('messages').appendChild(div);
+            scrollToBottom();
+        }
+
+        function speakSuggested(text) { speak(text); }
+
+        function showPronunciationRetry(pct, targetText, userSaid) {
+            document.getElementById('messages').innerHTML = ''; 
+            const div = document.createElement('div');
+            div.className = "msg-enter flex justify-center w-full mt-6";
+            const barColor = pct >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+            div.innerHTML = `
+                <div class="w-full max-w-md bg-slate-800 border-2 border-red-500/40 rounded-3xl p-6 text-center shadow-2xl">
+                    <div class="flex items-center justify-center gap-2 mb-4">
+                        <i class="fas fa-exclamation-circle text-red-400 text-xl"></i>
+                        <span class="text-sm font-black text-red-400 uppercase tracking-widest">Inténtalo de nuevo</span>
+                    </div>
+                    
+                    <div class="bg-slate-900/50 rounded-xl p-3 mb-3 border border-slate-700 text-left">
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Debías decir:</p>
+                        <p class="text-lg font-bold text-emerald-400 leading-snug">"${targetText}"</p>
+                    </div>
+
+                    <div class="bg-slate-900/50 rounded-xl p-3 mb-6 border border-slate-700 text-left">
+                        <p class="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1">Pero se escuchó:</p>
+                        <p class="text-base font-bold text-red-400 line-through decoration-red-500/70 leading-snug">"${userSaid}"</p>
+                    </div>
+                    
+                    <div class="bg-slate-700 rounded-full h-4 mb-2 overflow-hidden border border-slate-600">
+                        <div class="h-full ${barColor} rounded-full score-bar-fill" style="--target-w:${pct}%; width:0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs font-extrabold mb-6">
+                        <span class="text-red-400">0%</span>
+                        <span class="text-red-400 text-lg">${pct}%</span>
+                        <span class="text-emerald-400">100%</span>
+                    </div>
+                    <p class="text-sm text-slate-400 font-bold mb-6">Necesitas al menos <span class="text-emerald-400 font-black">60%</span>. Toca el micrófono para repetir.</p>
+                    <button onclick="toggleMic()" 
+                            class="w-full bg-red-500 hover:bg-red-400 text-white font-black text-base py-3.5 rounded-2xl border-2 border-red-600 shadow-[0_4px_0_0_#b91c1c] active:shadow-none active:translate-y-1 transition-all flex items-center justify-center gap-2">
+                        <i class="fas fa-microphone"></i> Hablar de nuevo
+                    </button>
+                </div>`;
+            document.getElementById('messages').appendChild(div);
+        }
+
+        function showPronunciationSuccess(pct) {
+            document.getElementById('messages').innerHTML = `
+                <div class="flex flex-col items-center justify-center w-full h-full mt-24 msg-enter">
+                    <div class="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center mb-6 border-4 border-emerald-500/40">
+                        <i class="fas fa-check text-emerald-400 text-5xl"></i>
+                    </div>
+                    <p class="text-emerald-400 font-black text-3xl mb-2">${pct}%</p>
+                    <p class="text-emerald-300 font-bold text-lg uppercase tracking-widest">¡Excelente!</p>
+                </div>
+            `;
+        }
+
+        function showPracticeLoading() {
+            const id = 'loader-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = "flex flex-col items-center justify-center w-full h-full mt-24 msg-enter";
+            div.innerHTML = `
+                <div class="w-20 h-20 rounded-full bg-indigo-500/20 flex items-center justify-center mb-4 border-2 border-indigo-500/40">
+                    <i class="fas fa-brain text-indigo-400 text-3xl animate-pulse"></i>
+                </div>
+                <p class="text-indigo-300 font-bold text-sm uppercase tracking-widest animate-pulse">Procesando...</p>
+            `;
+            document.getElementById('messages').appendChild(div);
+            return id;
+        }
+
+        /* ═══════════════════════════════════════
+           RENDERIZADO DE MENSAJES CASUALES
+        ═══════════════════════════════════════ */
+        const messagesContainer = document.getElementById('messages');
+
+        function addMessage(text, type, translation = "", hints = [], replayText = "") {
+            const msgId = 'msg-' + Date.now();
+            const div = document.createElement('div');
+            div.className = "msg-enter flex w-full " + (type === 'user' ? "justify-end" : "justify-start");
+
+            if (type === 'user') {
+                div.innerHTML = `<div id="content-${msgId}" class="max-w-[80%] bg-indigo-500 text-white px-5 py-3 rounded-2xl rounded-tr-sm shadow-md border-2 border-indigo-600 font-medium">${text}</div>`;
+            } else if (type === 'ai') {
+                const transId = 'trans-' + Date.now();
+                const hintsHtml = hints.length > 0 ? `
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        ${hints.map(h => `<button onclick="useHint('${h.replace(/'/g, "\\'")}')" class="text-xs bg-slate-700 hover:bg-indigo-500 border-2 border-slate-600 text-white px-3 py-1.5 rounded-xl transition-all font-bold active:scale-95"><i class="fas fa-magic mr-1 text-indigo-300"></i> ${h}</button>`).join('')}
+                    </div>` : '';
+                const safeReplay = (replayText || text).replace(/\[\[[^\]]+\]\]/g, m => m.split('|')[0].replace('[[', '')).replace(/<[^>]*>/g, '');
+                div.innerHTML = `
+                    <div class="flex gap-4 max-w-[85%] flex-col">
+                        <div class="flex gap-3">
+                            <div class="shrink-0 w-10 h-10 rounded-2xl bg-indigo-500 border-2 border-indigo-600 flex items-center justify-center shadow-sm">
+                                <i class="fas fa-robot text-white text-sm"></i>
+                            </div>
+                            <div class="bg-slate-800 border-2 border-slate-700 text-slate-200 px-5 py-4 rounded-2xl rounded-tl-sm shadow-md relative group w-full">
+                                <p class="text-base font-medium leading-relaxed text-white">${text}</p>
+                                <div class="mt-3 pt-3 border-t-2 border-slate-700 hidden" id="${transId}">
+                                    <p class="text-sm text-slate-400 font-bold flex items-start gap-2">
+                                        <i class="fas fa-language mt-0.5 text-indigo-400"></i> ${translation}
+                                    </p>
+                                </div>
+                                <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex gap-1">
+                                    <button onclick="replayMsgAudio(this)" data-replay="${safeReplay.replace(/"/g,'&quot;')}"
+                                            class="replay-audio-btn text-slate-400 hover:text-emerald-400 bg-slate-700 p-2 rounded-lg border border-slate-600 transition" title="Repetir audio">
+                                        <i class="fas fa-redo-alt text-sm"></i>
+                                    </button>
+                                    <button onclick="document.getElementById('${transId}').classList.toggle('hidden')" class="text-slate-400 hover:text-indigo-400 bg-slate-700 p-2 rounded-lg border border-slate-600 transition" title="Traducir">
+                                        <i class="fas fa-language text-sm"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pl-13">${hintsHtml}</div>
+                    </div>`;
+            } else {
+                div.innerHTML = `<div class="w-full text-center text-xs text-red-400 font-bold py-2">${text}</div>`;
+            }
+
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+            return msgId;
+        }
+
+        function addBetterWay(text) {
+            const div = document.createElement('div');
+            div.className = "msg-enter flex justify-start pl-13 mb-[-10px] relative z-20";
+            div.innerHTML = `
+                <div class="bg-emerald-500/10 border-2 border-emerald-500/30 px-4 py-2 rounded-xl rounded-tl-none flex items-center gap-3">
+                    <i class="fas fa-check-double text-emerald-400"></i>
+                    <div>
+                        <span class="block text-[10px] font-black text-emerald-500 uppercase tracking-widest">Mejor forma de decirlo</span>
+                        <span class="text-sm text-emerald-300 font-bold">"${text}"</span>
+                    </div>
+                </div>`;
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function addRefusal(text) {
+            const div = document.createElement('div');
+            div.className = "msg-enter flex justify-center w-full";
+            div.innerHTML = `<div class="bg-red-500/10 border-2 border-red-500/50 text-red-400 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2"><i class="fas fa-exclamation-triangle"></i> <span>${text}</span></div>`;
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function showLoading() {
+            const id = 'loader-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = "flex gap-3 max-w-[85%] msg-enter";
+            div.innerHTML = `
+                <div class="shrink-0 w-10 h-10 rounded-2xl bg-slate-700 border-2 border-slate-600 flex items-center justify-center">
+                    <i class="fas fa-circle-notch fa-spin text-slate-400 text-sm"></i>
+                </div>
+                <div class="bg-slate-800 border-2 border-slate-700 px-4 py-3 rounded-2xl rounded-tl-sm flex items-center gap-1.5 h-12">
+                    <div class="w-2 h-2 bg-slate-500 rounded-full typing-dot"></div>
+                    <div class="w-2 h-2 bg-slate-500 rounded-full typing-dot"></div>
+                    <div class="w-2 h-2 bg-slate-500 rounded-full typing-dot"></div>
+                </div>`;
+            messagesContainer.appendChild(div);
+            scrollToBottom();
+            return id;
+        }
+
+        function removeLoading(id) { document.getElementById(id)?.remove(); }
+        function scrollToBottom() { messagesContainer.scrollTo({ top: messagesContainer.scrollHeight, behavior: 'smooth' }); }
+
+        /* ═══════════════════════════════════════
+           AUDIO & VOCABULARIO
+        ═══════════════════════════════════════ */
+        function speak(text) {
+            if (synth.speaking) synth.cancel();
+            const utter = new SpeechSynthesisUtterance(text.replace(/<[^>]*>?/gm, ''));
+            if (state.voice) utter.voice = state.voice;
+            utter.onstart = () => document.getElementById('stop-audio-btn').classList.remove('hidden');
+            utter.onend = () => document.getElementById('stop-audio-btn').classList.add('hidden');
+            synth.speak(utter);
+        }
+
+        function replayMsgAudio(btn) {
+            const text = btn.getAttribute('data-replay');
+            if (!text) return;
+            speak(text);
+        }
+
+        function stopAudio() {
+            synth.cancel();
+            document.getElementById('stop-audio-btn').classList.add('hidden');
+        }
+
+        function saveVocabulary(htmlString) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlString;
+            const words = tempDiv.querySelectorAll('.highlight-word');
+            if (words.length === 0) return;
+            let savedVocab = JSON.parse(localStorage.getItem('speaking_pro_vocab')) || [];
+            words.forEach(w => {
+                const wordStr = w.innerText.trim();
+                const translation = w.getAttribute('data-translation') || '';
+                if (!savedVocab.some(item => item.word.toLowerCase() === wordStr.toLowerCase())) {
+                    savedVocab.push({ word: wordStr, translation: translation });
+                }
+            });
+            localStorage.setItem('speaking_pro_vocab', JSON.stringify(savedVocab));
+            renderVocabBank();
+        }
+
+        function renderVocabBank() {
+            const container = document.getElementById('vocab-list');
+            const savedVocab = JSON.parse(localStorage.getItem('speaking_pro_vocab')) || [];
+            if (savedVocab.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-500 font-bold bg-slate-700/50 p-3 rounded-xl border-2 border-slate-600/50 text-center">Sin palabras aún.</div>';
+                return;
+            }
+            container.innerHTML = savedVocab.reverse().slice(0, 10).map(v => `
+                <div class="bg-slate-700 p-2 rounded-xl border-2 border-slate-600 flex justify-between items-center">
+                    <span class="text-xs font-black text-yellow-400">${v.word}</span>
+                    <span class="text-[10px] text-slate-300 font-bold truncate max-w-[50%]">${v.translation}</span>
+                </div>
+            `).join('');
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+                if (recognition && state.isListening) {
+                    if (state.mode.id === 'casual') {
+                        // En charla libre: pausar sin perder el transcript acumulado
+                        state.isListening = false;
+                        casualIsRestarting = false;
+                        try { recognition.abort(); } catch(e) {}
+                        setCasualMicUI('idle');
+                    } else {
+                        clearTimeout(silenceTimer);
+                        recognition.abort();
+                        state.isListening = false;
+                        setMicUI(false);
+                    }
+                }
+            }
+        });
+
+        window.addEventListener('pagehide', () => {
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            if (recognition) { try { recognition.stop(); } catch(e) {} }
+            state.isListening = false;
+            casualIsRestarting = false;
+        });
+
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) {
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.resume();
+                }
+                clearTimeout(silenceTimer);
+                state.isListening = false;
+                casualIsRestarting = false;
+                casualFinalTranscript = '';
+                micPermissionGranted = false;
+                if (state.mode.id === 'casual') {
+                    recognition = buildCasualRecognition();
+                    setCasualMicUI('idle');
+                } else {
+                    recognition = buildRecognition();
+                    setMicUI(false);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
