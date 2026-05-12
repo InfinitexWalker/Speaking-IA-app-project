@@ -8,10 +8,10 @@ export default async function handler(req, res) {
 // /api/writing.js
 const ANALYZE_MODELS = [
   "inclusionai/ring-2.6-1t:free",
-  "google/gemini-2.0-flash-exp:free",      // 1. Rey de la velocidad y JSON
-  "google/learnlm-1.5-pro-experimental:free", // 2. Enfoque educativo (mejor para feedback)
-  "mistralai/pixtral-12b:free",            // 3. Muy confiable
-  "qwen/qwen-2.5-72b-instruct:free"        // 4. Potente pero con límites bajos
+  "baidu/cobuddy:free",      
+  "openrouter/owl-alpha", 
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",            
+  "poolside/laguna-xs.2:free"        
 ];
 
   try {
