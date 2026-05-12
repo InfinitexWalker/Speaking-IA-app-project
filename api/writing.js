@@ -5,11 +5,13 @@ export default async function handler(req, res) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   
   // Modelos optimizados para ANÁLISIS, RAZONAMIENTO Y JSON
-  const ANALYZE_MODELS = [
-    "openai/gpt-oss-20b:free",          // Prioridad: Muy estable para JSON
-    "liquid/lfm2.5-1.2b-thinking:free", // Respaldo: Especializado en razonamiento
-    "google/gemma-2-9b-it:free"         // Respaldo final
-  ];
+// /api/writing.js
+const ANALYZE_MODELS = [
+  "google/gemini-2.0-flash-exp:free",      // 1. Rey de la velocidad y JSON
+  "google/learnlm-1.5-pro-experimental:free", // 2. Enfoque educativo (mejor para feedback)
+  "mistralai/pixtral-12b:free",            // 3. Muy confiable
+  "qwen/qwen-2.5-72b-instruct:free"        // 4. Potente pero con límites bajos
+];
 
   try {
     const messages = req.body.contents.map(m => ({
