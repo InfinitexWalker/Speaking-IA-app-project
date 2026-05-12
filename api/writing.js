@@ -7,6 +7,7 @@ export default async function handler(req, res) {
   // Modelos optimizados para ANÁLISIS, RAZONAMIENTO Y JSON
 // /api/writing.js
 const ANALYZE_MODELS = [
+  "inclusionai/ring-2.6-1t:free",
   "google/gemini-2.0-flash-exp:free",      // 1. Rey de la velocidad y JSON
   "google/learnlm-1.5-pro-experimental:free", // 2. Enfoque educativo (mejor para feedback)
   "mistralai/pixtral-12b:free",            // 3. Muy confiable
