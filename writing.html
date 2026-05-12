@@ -321,14 +321,21 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
         // DIAGNÓSTICO COMPLETO (COLUMNA 3)
         const SYSTEM_PROMPT = `
         Analyze the following English text.
-        CRITICAL RULE: DO NOT put stylistic suggestions into "errors_to_practice". ONLY put HARD grammar errors.
+        CRITICAL RULES:
+        1. DO NOT put stylistic suggestions into "errors_to_practice". ONLY put HARD grammar errors.
+        2. Accurately judge the CEFR level based on BOTH vocabulary and grammar. 
+           - If the text uses complex grammar like Perfect Tenses (e.g., "I have been...", "I had done") or conditionals, rate it B2 or higher.
+           - If it uses advanced vocabulary (e.g., "immersing", "delighted"), phrasal verbs, or idioms, rate it B2 or C1.
+           - NEVER rate a text A1 or A2 if it contains advanced grammar or vocabulary, regardless of how short the text is.
+        
         OUTPUT STRICTLY JSON:
         {
-            "cefr_level": "A1/A2/B1/B2/C1",
+            "cefr_level": "A1/A2/B1/B2/C1/C2",
             "better_version": "The full text rewritten perfectly.",
             "errors_to_practice": [{"mistake": "exact wrong phrase", "correction": "how it should be written", "rule": "short rule explained"}]
         }
         `;
+
 
         async function analyzeText() {
             const text = writingArea.value.trim();
