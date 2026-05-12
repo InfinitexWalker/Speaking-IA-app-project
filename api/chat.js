@@ -1,14 +1,14 @@
-// chat.js
+// /api/chat.js
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const apiKey = process.env.OPENROUTER_API_KEY;
   
-  // Usamos los modelos más rápidos que encontraste para evitar esperas largas
-  const ANALYZE_MODELS = [
-    "openai/gpt-oss-20b:free",          // Prioridad: Muy estable para JSON
-    "liquid/lfm2.5-1.2b-thinking:free", // Respaldo: Especializado en razonamiento
-    "google/gemma-2-9b-it:free"         // Respaldo final
+  // Modelos optimizados para CONVERSACIÓN RÁPIDA
+  const CHAT_MODELS = [
+    "google/gemma-2-9b-it:free",          // Prioridad: Rápido y conversacional
+    "meta-llama/llama-3-8b-instruct:free", // Respaldo: Excelente fluidez
+    "openai/gpt-oss-20b:free"             // Respaldo final
   ];
 
   try {
@@ -19,11 +19,9 @@ export default async function handler(req, res) {
 
     let lastError = null;
 
-    // FIX: Cambiado de CHAT_MODELS a ANALYZE_MODELS
-    for (const model of ANALYZE_MODELS) {
-      // 1. Creamos un controlador para abortar la petición si tarda mucho
+    for (const model of CHAT_MODELS) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos máximo por modelo
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos para chat (queremos velocidad)
 
       try {
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -34,15 +32,15 @@ export default async function handler(req, res) {
             "HTTP-Referer": "http://localhost:3000",
             "X-Title": "Speaking Pro Chat"
           },
-          signal: controller.signal, // 2. Conectamos la señal de aborto
+          signal: controller.signal,
           body: JSON.stringify({
             "model": model,
             "messages": messages,
-            "temperature": 0.8
+            "temperature": 0.7 // Un poco de creatividad para la charla
           })
         });
 
-        clearTimeout(timeoutId); // Limpiamos el timeout si respondió a tiempo
+        clearTimeout(timeoutId);
 
         const data = await response.json();
         
@@ -55,8 +53,8 @@ export default async function handler(req, res) {
       } catch (e) {
         clearTimeout(timeoutId);
         lastError = e.name === 'AbortError' ? `Modelo ${model} tardó demasiado` : e.message;
-        console.warn(`Saltando modelo ${model}: ${lastError}`);
-        continue; // Pasa al siguiente modelo si este falló o tardó mucho
+        console.warn(`Saltando modelo ${model} en CHAT: ${lastError}`);
+        continue;
       }
     }
     throw new Error(lastError || "No hay modelos disponibles");

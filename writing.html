@@ -245,7 +245,7 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
     "c1": "An advanced alternative"
 }`;
 
-                const res = await fetch('/api/chat', {
+                const res = await fetch('/api/writing', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     signal: signal, // <-- 3. CONECTAMOS LA SEÑAL DE CANCELACIÓN AQUÍ
@@ -306,7 +306,7 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
                 result.classList.remove('hidden');
 
                 try {
-                    const res = await fetch('/api/chat', {
+                    const res = await fetch('/api/writing', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Translate this from Spanish to English. ONLY output the English text: " + word }] }] })
@@ -353,7 +353,7 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
             btn.disabled = true;
 
             try {
-                const res = await fetch('/api/chat', {
+                const res = await fetch('/api/writing', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: SYSTEM_PROMPT + "\n\nTEXT:\n" + text }] }] })
