@@ -6,16 +6,18 @@ export default async function handler(req, res) {
   
   // Modelos optimizados para CONVERSACIÓN RÁPIDA
   const CHAT_MODELS = [
-    "google/gemma-2-9b-it:free",          // Prioridad: Rápido y conversacional
-    "meta-llama/llama-3-8b-instruct:free", // Respaldo: Excelente fluidez
-    "openai/gpt-oss-20b:free"             // Respaldo final
+  "inclusionai/ring-2.6-1t:free",
+  "baidu/cobuddy:free",      
+  "openrouter/owl-alpha", 
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",            
+  "poolside/laguna-xs.2:free"   
   ];
 
   try {
     const messages = req.body.contents.map(m => ({
-      role: m.role === 'model' ? 'assistant' : 'user',
+      role: m.role === 'model' ? 'assistant' : (m.role === 'system' ? 'system' : 'user'),
       content: typeof m.parts[0].text === 'string' ? m.parts[0].text : JSON.stringify(m.parts[0].text)
-    }));
+  }));
 
     let lastError = null;
 

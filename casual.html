@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
         
@@ -149,10 +150,11 @@
         }
 
         .wave-bar {
-            display: inline-block; width: 4px; height: 12px; border-radius: 2px;
-            background: #ef4444; transform-origin: bottom;
-            animation: waveBar 0.6s ease-in-out infinite;
-        }
+    display: inline-block; width: 4px; height: 12px; border-radius: 2px;
+    background: #ef4444; transform-origin: bottom;
+    transition: transform 0.05s ease-out; /* Movimiento fluido pero real */
+}
+/* Elimina la animación @keyframes waveBar */
         .wave-bar:nth-child(2) { animation-delay: 0.1s; }
         .wave-bar:nth-child(3) { animation-delay: 0.2s; }
         .wave-bar:nth-child(4) { animation-delay: 0.3s; }
@@ -358,6 +360,7 @@
     </div>
 
     <script>
+        const responseCache = new Map(); // Memoria a corto plazo para evitar trabajar doble
         const MODES = [
             {
                 id: 'casual',
@@ -390,12 +393,10 @@ AFTER THEY TELL YOU: Immediately start the scenario. Stay fully in character. Ea
         };
 
         const BASE_SYSTEM_PROMPT = `
-You are a natural, human-sounding English conversation partner — NOT a tutor, NOT a robot.
-SPEAK LIKE A REAL PERSON: Use contractions, filler words, casual openers, and short punchy sentences. Never sound formal.
-KEEP IT SHORT: Your "reply" field should be 1-3 sentences max.
-STT RULE: The user speaks via Speech-to-Text that misinterprets Hispanic accents. Sound it out phonetically to deduce intent.
-VOCABULARY RULE: In your "reply" text, naturally wrap 1-2 interesting or useful English words/phrases in double brackets with this format: [[word or phrase|English meaning or usage note|Spanish translation]]. Example: "That sounds totally [[lit|extremely cool or exciting|genial/increíble]] — you gotta try it!"
-GRAMMAR MODE RULE: When [MODE: GRAMMAR] is active and the user makes a grammar or phrasing mistake, set error_snippet to the EXACT wrong phrase the user said (copy it verbatim), and correction_snippet to the corrected replacement phrase ONLY (not the full sentence). Example: if user said "I goes to the store", error_snippet="I goes" and correction_snippet="I go". If no error, set both to null.
+You are a natural, human-sounding English conversation partner.
+CRITICAL INSTRUCTION RETENTION: Always remember the initial scenario or topic we are practicing. Do not change the subject unless the user does.
+VOCABULARY RULE: ALWAYS use at least 1 phrasal verb, idiom, or advanced word in your reply and wrap it exactly like this: [[phrasal verb|meaning|Spanish translation]]. Example: [[hang out|spend time|pasar el rato]].
+FLUENCY MODE RULE: If the user speaks well but could sound more natural, DO NOT stop the conversation. Output a SHORT, natural alternative (1 sentence max) in the "better_way" field. Only correct the specific fragment, not the whole speech. If it's fine, set to null.
 OUTPUT FORMAT (JSON ONLY):
 {
   "clarity_score": 1-10,
@@ -726,7 +727,8 @@ OUTPUT FORMAT (JSON ONLY):
 
             const sysPrompt = state.mode.id === 'practice' ? PRACTICE_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
             const instruction = `ROLE: ${state.mode.system}\nLEVEL: ${state.level}.`;
-            state.history = [{ role: "user", parts: [{ text: sysPrompt + "\n" + instruction }] }];
+            // Reemplaza cómo guardas el historial inicial
+            state.history = [{ role: "system", parts: [{ text: sysPrompt + "\n" + instruction }] }];
 
             let greeting, greetingEs;
             if (state.mode.id === 'casual') {
@@ -832,14 +834,20 @@ OUTPUT FORMAT (JSON ONLY):
                 }
 
             } else if (micState === 'processing') {
-                btn.classList.remove('mic-active');
-                if (status) status.style.opacity = '1';
-                if (statusLabel) {
-                    statusLabel.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-[10px] md:text-xs font-extrabold uppercase tracking-widest";
-                    statusLabel.innerHTML = '<i class="fas fa-brain animate-pulse"></i> <span id="mic-status-text">Procesando…</span>';
-                }
-
-            } else { // idle
+    btn.classList.remove('mic-active');
+    // CONGELAR BOTÓN
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-not-allowed', 'scale-95');
+    
+    if (status) status.style.opacity = '1';
+    if (statusLabel) {
+        statusLabel.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-400 text-[10px] md:text-xs font-extrabold uppercase tracking-widest";
+        statusLabel.innerHTML = '<i class="fas fa-brain animate-pulse"></i> <span id="mic-status-text">Pensando…</span>';
+    }
+} else { // idle
+    // DESCONGELAR BOTÓN
+    btn.disabled = false;
+    btn.classList.remove('opacity-50', 'cursor-not-allowed', 'scale-95');
                 if (status) status.style.opacity = '0';
                 panel.classList.remove('panel-visible');
                 document.getElementById('casual-transcript-final').innerText = '';
@@ -906,6 +914,8 @@ function buildCasualRecognition() {
     r.onstart = () => {
         state.isListening = true;
         setCasualMicUI('listening');
+        startRealAudioWaves()
+        stopRealAudioWaves()
         stopAudio();
     };
 
@@ -1056,6 +1066,8 @@ function buildCasualRecognition() {
                     liveT.innerText = '';
                     liveT.style.opacity = '0';
                 }
+                startRealAudioWaves()
+                stopRealAudioWaves()
                 stopAudio();
             };
 
@@ -1188,6 +1200,52 @@ function buildCasualRecognition() {
                 if (input) { input.value = hint; input.focus(); }
             }
         }
+
+
+        //AUDIO ONDAS
+        let audioCtx, analyser, dataArray, micStreamSource, animationFrameId;
+
+async function startRealAudioWaves() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        micStreamSource = audioCtx.createMediaStreamSource(stream);
+        
+        analyser.fftSize = 256;
+        micStreamSource.connect(analyser);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        function drawWave() {
+            animationFrameId = requestAnimationFrame(drawWave);
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Sacar un promedio del volumen
+            let sum = 0;
+            for(let i = 0; i < dataArray.length; i++) { sum += dataArray[i]; }
+            let average = sum / dataArray.length;
+            
+            const waves = document.querySelectorAll('.wave-bar');
+            waves.forEach((wave, i) => {
+                // Escalar basado en el volumen real (el divisor varía para asimetría)
+                let scale = 0.4 + (average / (15 + (i * 5))); 
+                if (scale < 0.4) scale = 0.4;
+                if (scale > 1.8) scale = 1.8;
+                wave.style.transform = `scaleY(${scale})`;
+            });
+        }
+        drawWave();
+    } catch (e) {
+        console.error("Error al acceder al micrófono para las ondas:", e);
+    }
+}
+
+function stopRealAudioWaves() {
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    if (micStreamSource) micStreamSource.disconnect();
+    if (audioCtx) audioCtx.close();
+    document.querySelectorAll('.wave-bar').forEach(w => w.style.transform = 'scaleY(0.4)');
+}
 
         /* ═══════════════════════════════════════
            MODO GRAMÁTICA — CORRECCIÓN Y REINTENTO
@@ -1350,121 +1408,163 @@ function buildCasualRecognition() {
 
         function handleEnter(e) { if (e.key === 'Enter') sendText(); }
 
-        async function handleUserMessage(text) {
-            // ── Modo gramática: redirigir al manejador de reintento ──
-            if (state.grammarRetry && state.grammarRetry.active) {
-                handleGrammarRetryAttempt(text);
-                return;
+
+async function handleUserMessage(text) {
+    // ── Modo gramática: redirigir al manejador de reintento ──
+    if (state.grammarRetry && state.grammarRetry.active) {
+        handleGrammarRetryAttempt(text);
+        return;
+    }
+
+    const sendBtn = document.getElementById('sendBtn');
+    if (sendBtn) sendBtn.classList.add('is-loading', 'opacity-60', 'pointer-events-none');
+
+    let userMsgId, loadingId;
+    if (state.mode.id === 'casual') {
+        userMsgId = addMessage(text, 'user');
+        loadingId = showLoading();
+    } else {
+        document.getElementById('messages').innerHTML = ''; 
+        loadingId = showPracticeLoading(); 
+        if (!state.practiceStarted) state.practiceStarted = true;
+    }
+
+    try {
+        const modeInstruction = state.correctionMode === 'fluency' ? "[MODE: FLUENCY. Be forgiving, focus on communication not grammar]" : "[MODE: GRAMMAR. If the user makes ANY grammar or phrasing error, always provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement). Be encouraging.]";
+        
+        // 1. CLAVE DE CACHÉ MÁS ROBUSTA (Incluye el modo y la exigencia para evitar mezclar respuestas)
+        const cacheKey = `${state.mode.id}|${state.correctionMode}|${text.trim().toLowerCase()}`;
+        
+        let aiResponse;
+        let cleanJson;
+
+        // 2. VERIFICAR CACHÉ (Si repites, no gastas tokens)
+        if (responseCache.has(cacheKey)) {
+            console.log("⚡ Cargando respuesta desde memoria (Caché)");
+            aiResponse = responseCache.get(cacheKey);
+            cleanJson = JSON.stringify(aiResponse); // Reconstruir para guardar el historial
+            removeLoading(loadingId);
+        } else {
+            // 3. OPTIMIZACIÓN DE TOKENS (Sliding Window)
+            const MAX_HISTORY_TURNS = 6; // Ajusta esto (6 equivale a tus últimos 3 mensajes y las 3 respuestas de la IA)
+            let contextToSend = [];
+            
+            // Siempre conservar el System Prompt al inicio
+            if (state.history.length > 0 && state.history[0].role === 'system') {
+                contextToSend.push(state.history[0]);
             }
+            
+            // Tomar solo la historia reciente
+            const recentHistory = state.history.slice(-MAX_HISTORY_TURNS);
+            contextToSend = contextToSend.concat(recentHistory.filter(m => m.role !== 'system'));
+            
+            const payload = [...contextToSend, { role: "user", parts: [{ text: text + " " + modeInstruction }] }];
 
-            const sendBtn = document.getElementById('sendBtn');
-            if (sendBtn) sendBtn.classList.add('is-loading', 'opacity-60', 'pointer-events-none');
+            // 4. LLAMADA A LA API
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: payload })
+            });
 
-            let userMsgId, loadingId;
-            if (state.mode.id === 'casual') {
-                userMsgId = addMessage(text, 'user');
-                loadingId = showLoading();
-            } else {
-                document.getElementById('messages').innerHTML = ''; 
-                loadingId = showPracticeLoading(); 
-                if (!state.practiceStarted) state.practiceStarted = true;
+            removeLoading(loadingId);
+            
+            // 5. MANEJO PRECISO DE ERRORES (Punto 2 de tus requerimientos)
+            if (!res.ok) {
+                const errData = await res.json();
+                throw new Error(errData.error || "Error en el servidor");
             }
+            
+            const data = await res.json();
+            const rawContent = data.candidates[0].content.parts[0].text;
+            cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+            aiResponse = JSON.parse(cleanJson);
 
-            try {
-                const modeInstruction = state.correctionMode === 'fluency' ? "[MODE: FLUENCY. Be forgiving, focus on communication not grammar]" : "[MODE: GRAMMAR. If the user makes ANY grammar or phrasing error, always provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement). Be encouraging.]";
-                const payload = [...state.history, { role: "user", parts: [{ text: text + " " + modeInstruction }] }];
-
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: payload })
-                });
-
-                removeLoading(loadingId);
-                const data = await res.json();
-
-                const rawContent = data.candidates[0].content.parts[0].text;
-                const cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-                let aiResponse = JSON.parse(cleanJson);
-
-                // History push delayed — only happens if conversation advances (grammar retry might intercept below)
-                const _historyUser = { role: "user", parts: [{ text: text }] };
-                const _historyModel = { role: "model", parts: [{ text: cleanJson }] };
-
-                if (state.mode.id === 'casual') {
-                    if (aiResponse.error_snippet && text.toLowerCase().includes(aiResponse.error_snippet.toLowerCase())) {
-                        const userBubble = document.getElementById(`content-${userMsgId}`);
-                        if (userBubble) {
-                            const regex = new RegExp(`(${aiResponse.error_snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-                            userBubble.innerHTML = text.replace(regex, `<span class="bg-red-500/40 text-red-100 border-b-2 border-red-500 px-1 rounded inline-block">$1</span>`);
-                        }
-                    }
-
-                    // ── MODO GRAMÁTICA: bloquear conversación hasta que corrijan el error ──
-                    if (state.correctionMode === 'grammar' && aiResponse.error_snippet && aiResponse.correction_snippet) {
-                        state.grammarRetry = {
-                            active: true,
-                            correction: aiResponse.correction_snippet,
-                            errorSnippet: aiResponse.error_snippet,
-                            attempts: 0,
-                            pendingAiData: aiResponse,
-                            pendingUserText: text,
-                            pendingUserMsgId: userMsgId,
-                            historyUser: _historyUser,
-                            historyModel: _historyModel
-                        };
-                        showGrammarCorrectionCard(aiResponse.error_snippet, aiResponse.correction_snippet, 0);
-                        setCasualMicUI('idle');
-                        return; // No avanzar la conversación hasta corregir
-                    }
-
-                    // Sin error de gramática — avanzar normalmente y guardar historial
-                    state.history.push(_historyUser);
-                    state.history.push(_historyModel);
-
-                    const rawReply = aiResponse.reply;
-                    const parsedReply = parseHighlightWords(rawReply);
-                    addMessage(parsedReply, 'ai', aiResponse.translation, aiResponse.hints, rawReply);
-                    speak(parsedReply);
-                    saveVocabulary(parsedReply);
-                } else if (state.mode.id === 'practice') {
-                    // Guardar historial para modo práctica
-                    state.history.push(_historyUser);
-                    state.history.push(_historyModel);
-                    // Agregar el subtítulo de la IA antes de la sugerencia
-                    addAiSubtitle(aiResponse.reply);
-                }
-
-                // Para modo práctica: speak y save (casual ya los hizo arriba)
-                if (state.mode.id === 'practice') {
-                    speak(aiResponse.reply);
-                    saveVocabulary(aiResponse.reply);
-                }
-
-                if (aiResponse.suggested_response) {
-                    state.currentSuggested = aiResponse.suggested_response;
-                    if (state.mode.id === 'practice') {
-                        addSuggestedResponse(aiResponse.suggested_response);
-                    }
-                } else {
-                    state.currentSuggested = null;
-                }
-
-            } catch (err) {
-                removeLoading(loadingId);
-                if (state.mode.id === 'casual') {
-                    addMessage("Error de conexión.", 'system');
-                    setCasualMicUI('idle');
-                }
-            } finally {
-                if (sendBtn) sendBtn.classList.remove('is-loading', 'opacity-60', 'pointer-events-none');
-                // Restablecer panel de charla libre a estado idle después de la respuesta
-                if (state.mode.id === 'casual') {
-                    setCasualMicUI('idle');
-                }
-            }
+            // Guardar en caché el nuevo resultado
+            responseCache.set(cacheKey, aiResponse);
         }
 
+        // El historial local sigue guardando todo (aunque solo mandemos una parte a la API)
+        const _historyUser = { role: "user", parts: [{ text: text }] };
+        const _historyModel = { role: "model", parts: [{ text: cleanJson }] };
+
+        if (state.mode.id === 'casual') {
+            if (aiResponse.error_snippet && text.toLowerCase().includes(aiResponse.error_snippet.toLowerCase())) {
+                const userBubble = document.getElementById(`content-${userMsgId}`);
+                if (userBubble) {
+                    const regex = new RegExp(`(${aiResponse.error_snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                    userBubble.innerHTML = text.replace(regex, `<span class="bg-red-500/40 text-red-100 border-b-2 border-red-500 px-1 rounded inline-block">$1</span>`);
+                }
+            }
+
+            // ── MODO GRAMÁTICA: bloquear conversación hasta que corrijan el error ──
+            if (state.correctionMode === 'grammar' && aiResponse.error_snippet && aiResponse.correction_snippet) {
+                state.grammarRetry = {
+                    active: true,
+                    correction: aiResponse.correction_snippet,
+                    errorSnippet: aiResponse.error_snippet,
+                    attempts: 0,
+                    pendingAiData: aiResponse,
+                    pendingUserText: text,
+                    pendingUserMsgId: userMsgId,
+                    historyUser: _historyUser,
+                    historyModel: _historyModel
+                };
+                showGrammarCorrectionCard(aiResponse.error_snippet, aiResponse.correction_snippet, 0);
+                setCasualMicUI('idle');
+                return; 
+            }
+
+            // Avanzar normalmente y guardar historial
+            state.history.push(_historyUser);
+            state.history.push(_historyModel);
+
+            const rawReply = aiResponse.reply;
+            const parsedReply = parseHighlightWords(rawReply);
+            addMessage(parsedReply, 'ai', aiResponse.translation, aiResponse.hints, rawReply);
+            
+            // ── PUNTO 3: MOSTRAR TARJETA VERDE SIN FRENAR LA PLÁTICA (Better Way) ──
+            if (state.correctionMode === 'fluency' && aiResponse.better_way) {
+                addBetterWay(aiResponse.better_way);
+            }
+
+            speak(parsedReply);
+            saveVocabulary(parsedReply);
+            
+        } else if (state.mode.id === 'practice') {
+            state.history.push(_historyUser);
+            state.history.push(_historyModel);
+            addAiSubtitle(aiResponse.reply);
+        }
+
+        if (state.mode.id === 'practice') {
+            speak(aiResponse.reply);
+            saveVocabulary(aiResponse.reply);
+        }
+
+        if (aiResponse.suggested_response) {
+            state.currentSuggested = aiResponse.suggested_response;
+            if (state.mode.id === 'practice') {
+                addSuggestedResponse(aiResponse.suggested_response);
+            }
+        } else {
+            state.currentSuggested = null;
+        }
+
+    } catch (err) {
+        removeLoading(loadingId);
+        console.error("Error en handleUserMessage:", err);
+        if (state.mode.id === 'casual') {
+            addMessage("Error de conexión: " + err.message, 'system');
+            setCasualMicUI('idle');
+        }
+    } finally {
+        if (sendBtn) sendBtn.classList.remove('is-loading', 'opacity-60', 'pointer-events-none');
+        if (state.mode.id === 'casual') {
+            setCasualMicUI('idle');
+        }
+    }
+}
         /* ═══════════════════════════════════════
            TARJETAS DE PRÁCTICA Y SUBTÍTULOS
         ═══════════════════════════════════════ */
