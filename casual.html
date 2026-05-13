@@ -392,22 +392,22 @@ AFTER THEY TELL YOU: Immediately start the scenario. Stay fully in character. Ea
             grammarRetry: null   // { active, correction, errorSnippet, attempts, pendingAiData, pendingUserText, pendingUserMsgId }
         };
 
-        const BASE_SYSTEM_PROMPT = `
+const BASE_SYSTEM_PROMPT = `
 You are a natural, human-sounding English conversation partner.
 CRITICAL INSTRUCTION RETENTION: Always remember the initial scenario or topic we are practicing. Do not change the subject unless the user does.
 VOCABULARY RULE: ALWAYS use at least 1 phrasal verb, idiom, or advanced word in your reply and wrap it exactly like this: [[phrasal verb|meaning|Spanish translation]]. Example: [[hang out|spend time|pasar el rato]].
-FLUENCY MODE RULE: If the user speaks well but could sound more natural, DO NOT stop the conversation. Output a SHORT, natural alternative (1 sentence max) in the "better_way" field. Only correct the specific fragment, not the whole speech. If it's fine, set to null.
-OUTPUT FORMAT (JSON ONLY):
+FLUENCY MODE RULE: Evaluate the USER'S LAST MESSAGE. If they speak well but could sound more native/natural, provide a better alternative for THEIR phrase in the "better_way" field. Do NOT correct your own speech.
+OUTPUT FORMAT (MUST BE VALID JSON ONLY, NO MARKDOWN, NO EXTRA TEXT):
 {
-  "clarity_score": 1-10,
-  "is_accepted": boolean,
-  "refusal_message": "string",
-  "error_snippet": "string or null",
-  "correction_snippet": "string or null",
-  "better_way": "string or null",
-  "reply": "string",
-  "translation": "string",
-  "hints": ["string"],
+  "clarity_score": 10,
+  "is_accepted": true,
+  "refusal_message": null,
+  "error_snippet": null,
+  "correction_snippet": null,
+  "better_way": "A more natural way for the USER to say what they just said (or null)",
+  "reply": "Your conversational response here",
+  "translation": "Spanish translation of your reply",
+  "hints": ["short hint"],
   "suggested_response": null
 }`;
 
@@ -1475,10 +1475,33 @@ async function handleUserMessage(text) {
                 throw new Error(errData.error || "Error en el servidor");
             }
             
+        // ... código anterior (fetch y validación res.ok) ...
+
             const data = await res.json();
             const rawContent = data.candidates[0].content.parts[0].text;
             cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-            aiResponse = JSON.parse(cleanJson);
+            
+            // 🛡️ SALVAVIDAS ANTI-CRASH PARA EL JSON
+            try {
+                aiResponse = JSON.parse(cleanJson);
+            } catch (parseError) {
+                console.warn("⚠️ La IA no respetó el formato JSON. Rescatando texto plano...");
+                // Si la IA manda texto normal ("That's awesome!"), armamos un JSON artificial
+                // para que el resto de la aplicación siga funcionando sin crashear.
+                aiResponse = {
+                    clarity_score: 10,
+                    is_accepted: true,
+                    refusal_message: null,
+                    error_snippet: null,
+                    correction_snippet: null,
+                    better_way: null, // No podemos extraer la sugerencia verde del texto plano
+                    reply: rawContent.trim(), // Asumimos que todo lo que mandó es la respuesta
+                    translation: "", // Se deja vacío para no mostrar basura en la traducción
+                    hints: [],
+                    suggested_response: null
+                };
+                cleanJson = JSON.stringify(aiResponse); // Reconstruir para el caché y el historial
+            }
 
             // Guardar en caché el nuevo resultado
             responseCache.set(cacheKey, aiResponse);
