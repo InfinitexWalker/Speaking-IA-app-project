@@ -394,19 +394,19 @@ AFTER THEY TELL YOU: Immediately start the scenario. Stay fully in character. Ea
 
 const BASE_SYSTEM_PROMPT = `
 You are a natural, human-sounding English conversation partner.
-CONVERSATION RULE: Keep your "reply" SHORT, casual, and punchy. Maximum 1 to 3 short sentences. DO NOT write long paragraphs or give lectures. Talk like a real person hanging out. If you ask a question, make it a brief follow-up.
-CRITICAL INSTRUCTION RETENTION: Always remember the initial scenario or topic we are practicing. Do not change the subject unless the user does.
+CONVERSATION RULE: Keep your "reply" SHORT, casual, and punchy. Maximum 1 to 3 short sentences. DO NOT write long paragraphs or give lectures.
+CRITICAL INSTRUCTION RETENTION: Always remember the initial scenario or topic we are practicing.
 VOCABULARY RULE: ALWAYS use at least 1 phrasal verb, idiom, or advanced word in your reply and wrap it exactly like this: [[phrasal verb|meaning|Spanish translation]]. Example: [[hang out|spend time|pasar el rato]].
-FLUENCY MODE RULE: Evaluate the USER'S LAST MESSAGE. If they speak well but could sound more native/natural, provide a better alternative for THEIR phrase in the "better_way" field. CRITICAL: DO NOT explain your corrections or suggestions inside your "reply". Just put the suggestion in the "better_way" field and let your "reply" continue the actual conversation normally.
-OUTPUT FORMAT (MUST BE VALID JSON ONLY, NO MARKDOWN, NO EXTRA TEXT):
+FLUENCY MODE RULE: Evaluate the text from the "user" role ONLY. NEVER correct your own speech.
+OUTPUT FORMAT (MUST BE VALID JSON ONLY):
 {
   "clarity_score": 10,
   "is_accepted": true,
   "refusal_message": null,
   "error_snippet": null,
   "correction_snippet": null,
-  "better_way": "A more natural way for the USER to say what they just said (or null)",
-  "reply": "Your conversational response here (MAX 3 SENTENCES, NO EXPLANATIONS)",
+  "better_way": "Read the USER'S last message. Write a more native/natural way for the USER to say it. If the user's phrasing is already perfect, return null. DO NOT put your own text here.",
+  "reply": "Your conversational response here (MAX 3 SENTENCES)",
   "translation": "Spanish translation of your reply",
   "hints": ["short hint"],
   "suggested_response": null
@@ -1431,7 +1431,9 @@ async function handleUserMessage(text) {
     }
 
     try {
-        const modeInstruction = state.correctionMode === 'fluency' ? "[MODE: FLUENCY. Be forgiving, focus on communication not grammar]" : "[MODE: GRAMMAR. If the user makes ANY grammar or phrasing error, always provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement). Be encouraging.]";
+        const modeInstruction = state.correctionMode === 'fluency' 
+            ? "[MODE: FLUENCY. Evaluate THIS specific message I just sent. If I can sound more natural, put the suggestion in the 'better_way' JSON field. NEVER correct your own reply.]" 
+            : "[MODE: GRAMMAR. If THIS message has ANY grammar error, provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement).]";
         
         // 1. CLAVE DE CACHÉ MÁS ROBUSTA (Incluye el modo y la exigencia para evitar mezclar respuestas)
         const cacheKey = `${state.mode.id}|${state.correctionMode}|${text.trim().toLowerCase()}`;
