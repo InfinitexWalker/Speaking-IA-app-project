@@ -1449,7 +1449,7 @@ async function handleUserMessage(text) {
             removeLoading(loadingId);
         } else {
             // 3. OPTIMIZACIÓN DE TOKENS (Sliding Window)
-            const MAX_HISTORY_TURNS = 6; // Ajusta esto (6 equivale a tus últimos 3 mensajes y las 3 respuestas de la IA)
+            const MAX_HISTORY_TURNS = 12; // Ajusta esto (12 equivale a tus últimos 6 mensajes y las 6 respuestas de la IA)
             let contextToSend = [];
             
             // Siempre conservar el System Prompt al inicio
@@ -1487,23 +1487,26 @@ async function handleUserMessage(text) {
             // 🛡️ SALVAVIDAS ANTI-CRASH PARA EL JSON
             try {
                 aiResponse = JSON.parse(cleanJson);
-            } catch (parseError) {
+            }catch (parseError) {
                 console.warn("⚠️ La IA no respetó el formato JSON. Rescatando texto plano...");
-                // Si la IA manda texto normal ("That's awesome!"), armamos un JSON artificial
-                // para que el resto de la aplicación siga funcionando sin crashear.
+                
+                // Intentamos extraer solo lo que está dentro de "reply": "..."
+                const replyMatch = rawContent.match(/"reply"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
+                const extractedReply = replyMatch ? replyMatch[1].replace(/\\"/g, '"') : "I had a quick glitch understanding that, could you say it again?";
+
                 aiResponse = {
                     clarity_score: 10,
                     is_accepted: true,
                     refusal_message: null,
                     error_snippet: null,
                     correction_snippet: null,
-                    better_way: null, // No podemos extraer la sugerencia verde del texto plano
-                    reply: rawContent.trim(), // Asumimos que todo lo que mandó es la respuesta
-                    translation: "", // Se deja vacío para no mostrar basura en la traducción
+                    better_way: null, 
+                    reply: extractedReply, // Solo mostramos el texto extraído o el mensaje de error natural
+                    translation: "", 
                     hints: [],
                     suggested_response: null
                 };
-                cleanJson = JSON.stringify(aiResponse); // Reconstruir para el caché y el historial
+               cleanJson = JSON.stringify(aiResponse); 
             }
 
             // Guardar en caché el nuevo resultado
