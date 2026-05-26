@@ -685,9 +685,16 @@ OUTPUT FORMAT (JSON ONLY):
             state.correctionMode = mode;
             const btnFluency = document.getElementById('mode-fluency');
             const btnGrammar = document.getElementById('mode-grammar');
+            
             if (mode === 'fluency') {
                 btnFluency.className = "flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-[0_2px_0_0_#4338ca] transition-all";
                 btnGrammar.className = "flex-1 text-sm py-2 rounded-lg text-slate-400 hover:text-white font-bold transition-all";
+                
+                // 🔥 NUEVO: Matar la tarjeta de corrección si cambias a fluidez a mitad de un error
+                if (state.grammarRetry) {
+                    state.grammarRetry = null;
+                    document.getElementById('grammar-retry-card')?.remove();
+                }
             } else {
                 btnGrammar.className = "flex-1 text-sm py-2 rounded-lg bg-indigo-500 text-white font-bold shadow-[0_2px_0_0_#4338ca] transition-all";
                 btnFluency.className = "flex-1 text-sm py-2 rounded-lg text-slate-400 hover:text-white font-bold transition-all";
@@ -1533,9 +1540,8 @@ async function handleUserMessage(text) {
 
     try {
         const modeInstruction = state.correctionMode === 'fluency' 
-            ? "[MODE: FLUENCY. Evaluate THIS specific message I just sent. If I can sound more natural, put the suggestion in the 'better_way' JSON field. NEVER correct your own reply.]" 
-            : "[MODE: GRAMMAR. If THIS message has ANY grammar error, provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement).]";
-        
+            ? "[MODE: FLUENCY. Evaluate THIS message. If I can sound more natural, put the suggestion in 'better_way'. CRITICAL: In your 'reply', DO NOT act like a teacher and DO NOT mention my mistakes. Just reply naturally as a friend to keep the conversation flowing.]" 
+            : "[MODE: GRAMMAR. If THIS message has ANY grammar error, provide 'error_snippet' and 'correction_snippet'. In your 'reply', continue the conversation naturally as a friend.]";
         const cacheKey = `${state.mode.id}|${state.correctionMode}|${text.trim().toLowerCase()}`;
         
         let aiResponse;
