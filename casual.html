@@ -152,13 +152,8 @@
         .wave-bar {
     display: inline-block; width: 4px; height: 12px; border-radius: 2px;
     background: #ef4444; transform-origin: bottom;
-    transition: transform 0.05s ease-out; /* Movimiento fluido pero real */
+    transition: transform 0.06s ease-out;
 }
-/* Elimina la animación @keyframes waveBar */
-        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
-        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
-        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
-        .wave-bar:nth-child(5) { animation-delay: 0.15s; }
 
         #mic-permission-banner {
             display: none;
@@ -260,6 +255,17 @@
                     </div>
                     <div id="vocab-list" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
                 </div>
+
+                <div>
+                    <div class="flex justify-between items-end mb-2">
+                        <label class="text-xs font-extrabold text-slate-400 uppercase tracking-widest block">Banco Local IA</label>
+                        <button onclick="localStorage.removeItem('speaking_pro_local_bank'); renderLocalBankStats();" class="text-xs text-red-400 hover:text-red-300 font-bold p-1"><i class="fas fa-trash"></i></button>
+                    </div>
+                    <div id="local-bank-stats" class="bg-slate-700/50 rounded-xl p-3 border-2 border-slate-600/50 text-center">
+                        <span class="text-xs text-slate-500 font-bold">Sin frases aprendidas aún.</span>
+                    </div>
+                    <p class="text-[10px] text-slate-600 font-bold mt-1.5 leading-snug">La IA aprende tus conversaciones y las guarda para responder sin internet.</p>
+                </div>
             </div>
         </aside>
 
@@ -298,7 +304,8 @@
                     </div>
 
                     <div id="input-controls" class="flex items-center gap-2 md:gap-3 relative justify-center transition-all">
-                        <button id="micBtn" onclick="toggleMic()" title="Presionar para hablar">
+                        <button id="micBtn" onclick="toggleMic()" title="Presionar para hablar"
+                                class="shrink-0 w-20 h-20 md:w-24 md:h-24 rounded-full bg-slate-700 text-slate-300 border-4 border-slate-600 shadow-[0_6px_0_0_#1e293b] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center text-3xl font-extrabold text-white z-40">
                             <i class="fas fa-microphone"></i>
                         </button>
 
@@ -361,6 +368,96 @@
 
     <script>
         const responseCache = new Map(); // Memoria a corto plazo para evitar trabajar doble
+
+        /* ═══════════════════════════════════════
+           BANCO LOCAL DE FRASES (FALLBACK OFFLINE / FREEZE)
+           Guarda respuestas reales aprendidas + semilla predefinida
+        ═══════════════════════════════════════ */
+        const PHRASE_BANK_SEED = [
+            { trigger: /\b(hi|hello|hey|what'?s up|howdy)\b/i,
+              reply: "Hey! What's up? It's good to hear from you — what's on your mind today?",
+              translation: "¡Oye! ¿Qué hay? Me alegra saber de ti — ¿qué tienes en mente hoy?" },
+            { trigger: /\b(how are you|how'?re you|how do you do)\b/i,
+              reply: "I'm doing really well, thanks! Things have been pretty chill on my end. How about you though?",
+              translation: "Estoy muy bien, ¡gracias! Las cosas han estado bastante tranquilas. ¿Y tú?" },
+            { trigger: /\b(what('?s| is) (the )?weather|clima)\b/i,
+              reply: "No idea from where I'm sitting, but I hope it's nice out there! Is it hot or cold today?",
+              translation: "Desde donde estoy no lo sé, ¡pero espero que esté lindo! ¿Hace calor o frío hoy?" },
+            { trigger: /\b(bored|aburrido|nothing to do)\b/i,
+              reply: "Ugh, same vibe sometimes! You should try picking up something random — like learning a card trick or cooking a dish you've never made. What kind of stuff are you usually into?",
+              translation: "¡Ay, esa vibra a veces! Deberías intentar algo al azar — como aprender un truco de cartas o cocinar algo nuevo. ¿Qué tipo de cosas te gustan normalmente?" },
+            { trigger: /\b(movie|film|serie|show|watch|ver)\b/i,
+              reply: "Oh nice, I love talking about movies and shows! Are you in the middle of watching something, or looking for a recommendation?",
+              translation: "¡Qué bueno, me encanta hablar de películas y series! ¿Estás viendo algo o buscas una recomendación?" },
+            { trigger: /\b(food|eat|comer|hungry|hambre|restaurant)\b/i,
+              reply: "Oh man, now I'm hungry just thinking about it! What kind of food are you into — are you a spicy food lover or more of a comfort food person?",
+              translation: "Ay, ahora me dio hambre solo de pensarlo. ¿Qué tipo de comida te gusta — eres amante de lo picante o prefieres la comida reconfortante?" },
+            { trigger: /\b(music|song|cancio|listen|spotify)\b/i,
+              reply: "Ooh, music is life! What have you been listening to lately — are you on a specific genre kick or just vibing with whatever hits?",
+              translation: "¡La música es vida! ¿Qué has estado escuchando últimamente — estás en un género específico o simplemente con lo que pegue?" },
+            { trigger: /\b(work|job|trabajo|office|boss|jefe)\b/i,
+              reply: "Ah, work stuff — always a topic, right? Is it going well or is it one of those 'I need a vacation' kind of situations?",
+              translation: "Ah, cosas del trabajo — siempre hay algo que contar. ¿Va bien o es de esas situaciones de 'necesito vacaciones'?" },
+            { trigger: /\b(tired|cansado|sleep|dormir|exhausted)\b/i,
+              reply: "I totally get that feeling — sometimes you just run on empty, you know? Did you not sleep well, or has it just been a really full-on week?",
+              translation: "Totalmente entendible — a veces simplemente te quedas sin energía. ¿No dormiste bien o simplemente fue una semana muy intensa?" },
+            { trigger: /\b(good|great|awesome|excelente|genial|fantastic)\b/i,
+              reply: "That's awesome to hear! Sounds like things are going your way lately — what's been the highlight?",
+              translation: "¡Qué bien escuchar eso! Parece que las cosas están saliendo bien últimamente — ¿cuál ha sido lo mejor?" },
+        ];
+
+        const LOCAL_BANK_KEY = 'speaking_pro_local_bank';
+        const MAX_BANK_ENTRIES = 60;
+
+        function learnFromResponse(userText, aiData) {
+            if (!aiData || !aiData.reply || !aiData.is_accepted) return;
+            try {
+                let bank = JSON.parse(localStorage.getItem(LOCAL_BANK_KEY)) || [];
+                const existing = bank.findIndex(e => e.userText.toLowerCase() === userText.toLowerCase());
+                if (existing !== -1) return; // ya existe
+                bank.push({
+                    userText: userText.toLowerCase().trim(),
+                    reply: aiData.reply,
+                    translation: aiData.translation || '',
+                    hints: aiData.hints || [],
+                    ts: Date.now()
+                });
+                // Mantener solo las más recientes
+                if (bank.length > MAX_BANK_ENTRIES) bank = bank.slice(-MAX_BANK_ENTRIES);
+                localStorage.setItem(LOCAL_BANK_KEY, JSON.stringify(bank));
+            } catch(e) { /* localStorage lleno — no es crítico */ }
+        }
+
+        function getLocalFallback(userText) {
+            const text = userText.toLowerCase().trim();
+
+            // 1. Buscar en banco aprendido (coincidencia exacta primero, luego parcial)
+            try {
+                const bank = JSON.parse(localStorage.getItem(LOCAL_BANK_KEY)) || [];
+                const exact = bank.find(e => e.userText === text);
+                if (exact) return { ...exact, _isLocal: true };
+                const words = text.split(/\s+/).filter(w => w.length > 3);
+                const partial = bank.find(e => words.some(w => e.userText.includes(w)));
+                if (partial) return { ...partial, _isLocal: true };
+            } catch(e) {}
+
+            // 2. Buscar en semilla predefinida
+            const seed = PHRASE_BANK_SEED.find(s => s.trigger.test(text));
+            if (seed) return {
+                reply: seed.reply,
+                translation: seed.translation,
+                hints: [],
+                _isLocal: true
+            };
+
+            // 3. Respuesta genérica de último recurso
+            return {
+                reply: "Sorry, I had a little brain freeze there! Could you say that again? I'm all ears.",
+                translation: "¡Perdón, tuve un pequeño bloqueo! ¿Puedes repetirlo? Soy todo oídos.",
+                hints: [],
+                _isLocal: true
+            };
+        }
         const MODES = [
             {
                 id: 'casual',
@@ -742,6 +839,7 @@ OUTPUT FORMAT (JSON ONLY):
 
             speak(greeting);
             renderVocabBank();
+            renderLocalBankStats();
         }
 
         /* ═══════════════════════════════════════
@@ -915,8 +1013,7 @@ function buildCasualRecognition() {
     r.onstart = () => {
         state.isListening = true;
         setCasualMicUI('listening');
-        startRealAudioWaves()
-        stopRealAudioWaves()
+        startRealAudioWaves();
         stopAudio();
     };
 
@@ -964,6 +1061,7 @@ function buildCasualRecognition() {
     r.onend = () => {
         state.isListening = false;
         clearTimeout(silenceTimer);
+        stopRealAudioWaves();
         
         const text = casualFinalTranscript.trim();
         if (text) {
@@ -980,6 +1078,7 @@ function buildCasualRecognition() {
    r.onerror = (event) => {
     state.isListening = false;
     clearTimeout(silenceTimer);
+    stopRealAudioWaves();
 
     if (event.error === 'not-allowed') {
         networkRetryCount = 0;
@@ -1067,8 +1166,7 @@ function buildCasualRecognition() {
                     liveT.innerText = '';
                     liveT.style.opacity = '0';
                 }
-                startRealAudioWaves()
-                stopRealAudioWaves()
+                startRealAudioWaves();
                 stopAudio();
             };
 
@@ -1102,6 +1200,7 @@ function buildCasualRecognition() {
             r.onend = () => {
                 state.isListening = false;
                 setMicUI(false);
+                stopRealAudioWaves();
                 clearTimeout(silenceTimer);
                 const val = document.getElementById('textInput').value.trim();
                 if (!val) return;
@@ -1127,6 +1226,7 @@ function buildCasualRecognition() {
             r.onerror = (event) => {
                 state.isListening = false;
                 setMicUI(false);
+                stopRealAudioWaves();
                 clearTimeout(silenceTimer);
                 if (event.error === 'not-allowed') showMicError('Permiso denegado.');
                 recognition = buildRecognition();
@@ -1204,14 +1304,16 @@ function buildCasualRecognition() {
 
 
         //AUDIO ONDAS
-        let audioCtx, analyser, dataArray, micStreamSource, animationFrameId;
+        let audioCtx, analyser, dataArray, micStreamSource, animationFrameId, micStream;
 
 async function startRealAudioWaves() {
+    // Limpiar instancia anterior para evitar fuga de memoria
+    stopRealAudioWaves();
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioCtx.createAnalyser();
-        micStreamSource = audioCtx.createMediaStreamSource(stream);
+        micStreamSource = audioCtx.createMediaStreamSource(micStream);
         
         analyser.fftSize = 256;
         micStreamSource.connect(analyser);
@@ -1221,14 +1323,12 @@ async function startRealAudioWaves() {
             animationFrameId = requestAnimationFrame(drawWave);
             analyser.getByteFrequencyData(dataArray);
             
-            // Sacar un promedio del volumen
             let sum = 0;
             for(let i = 0; i < dataArray.length; i++) { sum += dataArray[i]; }
             let average = sum / dataArray.length;
             
             const waves = document.querySelectorAll('.wave-bar');
             waves.forEach((wave, i) => {
-                // Escalar basado en el volumen real (el divisor varía para asimetría)
                 let scale = 0.4 + (average / (15 + (i * 5))); 
                 if (scale < 0.4) scale = 0.4;
                 if (scale > 1.8) scale = 1.8;
@@ -1237,14 +1337,15 @@ async function startRealAudioWaves() {
         }
         drawWave();
     } catch (e) {
-        console.error("Error al acceder al micrófono para las ondas:", e);
+        console.warn("Error al acceder al micrófono para las ondas:", e);
     }
 }
 
 function stopRealAudioWaves() {
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    if (micStreamSource) micStreamSource.disconnect();
-    if (audioCtx) audioCtx.close();
+    if (animationFrameId) { cancelAnimationFrame(animationFrameId); animationFrameId = null; }
+    if (micStreamSource) { try { micStreamSource.disconnect(); } catch(e){} micStreamSource = null; }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    if (audioCtx && audioCtx.state !== 'closed') { audioCtx.close().catch(()=>{}); audioCtx = null; }
     document.querySelectorAll('.wave-bar').forEach(w => w.style.transform = 'scaleY(0.4)');
 }
 
@@ -1368,7 +1469,7 @@ function stopRealAudioWaves() {
                     const rawReply = aiData.reply;
                     const parsedReply = parseHighlightWords(rawReply);
                     addMessage(parsedReply, 'ai', aiData.translation, aiData.hints, rawReply);
-                    speak(parsedReply);
+                    speak(rawReply);
                     saveVocabulary(parsedReply);
                     if (aiData.suggested_response) state.currentSuggested = aiData.suggested_response;
                 }, 900);
@@ -1435,85 +1536,104 @@ async function handleUserMessage(text) {
             ? "[MODE: FLUENCY. Evaluate THIS specific message I just sent. If I can sound more natural, put the suggestion in the 'better_way' JSON field. NEVER correct your own reply.]" 
             : "[MODE: GRAMMAR. If THIS message has ANY grammar error, provide error_snippet (exact wrong phrase verbatim) and correction_snippet (corrected replacement).]";
         
-        // 1. CLAVE DE CACHÉ MÁS ROBUSTA (Incluye el modo y la exigencia para evitar mezclar respuestas)
         const cacheKey = `${state.mode.id}|${state.correctionMode}|${text.trim().toLowerCase()}`;
         
         let aiResponse;
         let cleanJson;
+        let usedFallback = false;
 
-        // 2. VERIFICAR CACHÉ (Si repites, no gastas tokens)
         if (responseCache.has(cacheKey)) {
             console.log("⚡ Cargando respuesta desde memoria (Caché)");
             aiResponse = responseCache.get(cacheKey);
-            cleanJson = JSON.stringify(aiResponse); // Reconstruir para guardar el historial
+            cleanJson = JSON.stringify(aiResponse);
             removeLoading(loadingId);
         } else {
-            // 3. OPTIMIZACIÓN DE TOKENS (Sliding Window)
-            const MAX_HISTORY_TURNS = 12; // Ajusta esto (12 equivale a tus últimos 6 mensajes y las 6 respuestas de la IA)
+            const MAX_HISTORY_TURNS = 12;
             let contextToSend = [];
             
-            // Siempre conservar el System Prompt al inicio
             if (state.history.length > 0 && state.history[0].role === 'system') {
                 contextToSend.push(state.history[0]);
             }
-            
-            // Tomar solo la historia reciente
             const recentHistory = state.history.slice(-MAX_HISTORY_TURNS);
             contextToSend = contextToSend.concat(recentHistory.filter(m => m.role !== 'system'));
             
             const payload = [...contextToSend, { role: "user", parts: [{ text: text + " " + modeInstruction }] }];
 
-            // 4. LLAMADA A LA API
-            const res = await fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ contents: payload })
-            });
+            // ── TIMEOUT: abortar si la API no responde en 12 segundos ──
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-            removeLoading(loadingId);
-            
-            // 5. MANEJO PRECISO DE ERRORES (Punto 2 de tus requerimientos)
-            if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(errData.error || "Error en el servidor");
-            }
-            
-        // ... código anterior (fetch y validación res.ok) ...
-
-            const data = await res.json();
-            const rawContent = data.candidates[0].content.parts[0].text;
-            cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
-            
-            // 🛡️ SALVAVIDAS ANTI-CRASH PARA EL JSON
+            let res;
             try {
-                aiResponse = JSON.parse(cleanJson);
-            }catch (parseError) {
-                console.warn("⚠️ La IA no respetó el formato JSON. Rescatando texto plano...");
-                
-                // Intentamos extraer solo lo que está dentro de "reply": "..."
-                const replyMatch = rawContent.match(/"reply"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
-                const extractedReply = replyMatch ? replyMatch[1].replace(/\\"/g, '"') : "I had a quick glitch understanding that, could you say it again?";
-
+                res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: payload }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+            } catch (fetchErr) {
+                clearTimeout(timeoutId);
+                if (fetchErr.name === 'AbortError') {
+                    console.warn("⏱️ API tardó demasiado — usando respuesta local");
+                } else {
+                    console.warn("🌐 Error de red — usando respuesta local:", fetchErr.message);
+                }
+                // Fallback al banco local
+                removeLoading(loadingId);
+                const fallback = getLocalFallback(text);
                 aiResponse = {
-                    clarity_score: 10,
-                    is_accepted: true,
-                    refusal_message: null,
-                    error_snippet: null,
-                    correction_snippet: null,
-                    better_way: null, 
-                    reply: extractedReply, // Solo mostramos el texto extraído o el mensaje de error natural
-                    translation: "", 
-                    hints: [],
-                    suggested_response: null
+                    clarity_score: 10, is_accepted: true,
+                    refusal_message: null, error_snippet: null,
+                    correction_snippet: null, better_way: null,
+                    reply: fallback.reply,
+                    translation: fallback.translation,
+                    hints: fallback.hints || [],
+                    suggested_response: null,
+                    _isLocal: true
                 };
-               cleanJson = JSON.stringify(aiResponse); 
+                cleanJson = JSON.stringify(aiResponse);
+                usedFallback = true;
             }
 
-            // Guardar en caché el nuevo resultado
-            responseCache.set(cacheKey, aiResponse);
+            if (!usedFallback) {
+                removeLoading(loadingId);
+                
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.error || `Error del servidor (${res.status})`);
+                }
+
+                const data = await res.json();
+                const rawContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!rawContent) throw new Error("Respuesta vacía del servidor");
+
+                cleanJson = rawContent.replace(/```json/g, '').replace(/```/g, '').trim();
+                
+                try {
+                    aiResponse = JSON.parse(cleanJson);
+                } catch (parseError) {
+                    console.warn("⚠️ La IA no respetó el formato JSON. Rescatando texto plano...");
+                    const replyMatch = rawContent.match(/"reply"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/);
+                    const extractedReply = replyMatch
+                        ? replyMatch[1].replace(/\\"/g, '"')
+                        : "I had a quick glitch understanding that, could you say it again?";
+                    aiResponse = {
+                        clarity_score: 10, is_accepted: true,
+                        refusal_message: null, error_snippet: null,
+                        correction_snippet: null, better_way: null, 
+                        reply: extractedReply,
+                        translation: "", hints: [], suggested_response: null
+                    };
+                    cleanJson = JSON.stringify(aiResponse); 
+                }
+
+                // Guardar en caché y aprender para uso offline
+                responseCache.set(cacheKey, aiResponse);
+                learnFromResponse(text, aiResponse);
+            }
         }
 
-        // El historial local sigue guardando todo (aunque solo mandemos una parte a la API)
         const _historyUser = { role: "user", parts: [{ text: text }] };
         const _historyModel = { role: "model", parts: [{ text: cleanJson }] };
 
@@ -1526,7 +1646,6 @@ async function handleUserMessage(text) {
                 }
             }
 
-            // ── MODO GRAMÁTICA: bloquear conversación hasta que corrijan el error ──
             if (state.correctionMode === 'grammar' && aiResponse.error_snippet && aiResponse.correction_snippet) {
                 state.grammarRetry = {
                     active: true,
@@ -1544,20 +1663,22 @@ async function handleUserMessage(text) {
                 return; 
             }
 
-            // Avanzar normalmente y guardar historial
             state.history.push(_historyUser);
             state.history.push(_historyModel);
 
             const rawReply = aiResponse.reply;
             const parsedReply = parseHighlightWords(rawReply);
-            addMessage(parsedReply, 'ai', aiResponse.translation, aiResponse.hints, rawReply);
+            // Si fue respuesta local, añadir indicador sutil
+            const localBadge = aiResponse._isLocal
+                ? `<span class="block text-[9px] text-slate-500 font-bold mt-1 uppercase tracking-widest"><i class="fas fa-database mr-1"></i>respuesta local</span>`
+                : '';
+            addMessage(parsedReply + localBadge, 'ai', aiResponse.translation, aiResponse.hints, rawReply);
             
-            // ── PUNTO 3: MOSTRAR TARJETA VERDE SIN FRENAR LA PLÁTICA (Better Way) ──
             if (state.correctionMode === 'fluency' && aiResponse.better_way) {
                 addBetterWay(aiResponse.better_way);
             }
 
-            speak(parsedReply);
+            speak(rawReply);
             saveVocabulary(parsedReply);
             
         } else if (state.mode.id === 'practice') {
@@ -1583,9 +1704,19 @@ async function handleUserMessage(text) {
     } catch (err) {
         removeLoading(loadingId);
         console.error("Error en handleUserMessage:", err);
+        const errMsg = err.message || "Error desconocido";
         if (state.mode.id === 'casual') {
-            addMessage("Error de conexión: " + err.message, 'system');
-            setCasualMicUI('idle');
+            // Mostrar error Y ofrecer respuesta local
+            const fallback = getLocalFallback(text);
+            const rawReply = fallback.reply;
+            const parsedReply = parseHighlightWords(rawReply);
+            addMessage(
+                parsedReply + `<span class="block text-[9px] text-amber-500 font-bold mt-1 uppercase tracking-widest"><i class="fas fa-wifi-slash mr-1"></i>sin conexión · local</span>`,
+                'ai', fallback.translation, [], rawReply
+            );
+            speak(rawReply);
+        } else {
+            addMessage(`⚠️ ${errMsg}`, 'system');
         }
     } finally {
         if (sendBtn) sendBtn.classList.remove('is-loading', 'opacity-60', 'pointer-events-none');
@@ -1849,6 +1980,29 @@ async function handleUserMessage(text) {
                     <span class="text-[10px] text-slate-300 font-bold truncate max-w-[50%]">${v.translation}</span>
                 </div>
             `).join('');
+        }
+
+        function renderLocalBankStats() {
+            const container = document.getElementById('local-bank-stats');
+            if (!container) return;
+            const bank = JSON.parse(localStorage.getItem(LOCAL_BANK_KEY)) || [];
+            const seed = PHRASE_BANK_SEED.length;
+            if (bank.length === 0) {
+                container.innerHTML = `<span class="text-xs text-slate-500 font-bold">${seed} frases de semilla listas.</span>`;
+            } else {
+                container.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="text-center flex-1">
+                            <p class="text-lg font-black text-emerald-400">${bank.length}</p>
+                            <p class="text-[9px] text-slate-400 font-black uppercase tracking-widest">aprendidas</p>
+                        </div>
+                        <div class="w-px h-8 bg-slate-600"></div>
+                        <div class="text-center flex-1">
+                            <p class="text-lg font-black text-indigo-400">${seed}</p>
+                            <p class="text-[9px] text-slate-400 font-black uppercase tracking-widest">semilla</p>
+                        </div>
+                    </div>`;
+            }
         }
 
         document.addEventListener('visibilitychange', () => {
