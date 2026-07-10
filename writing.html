@@ -187,7 +187,7 @@
             // DISPARAR EL RADAR AQUÍ (Es más seguro que keyup)
             clearTimeout(typingTimer);
             if (writingArea.value.trim().length > 3) {
-                typingTimer = setTimeout(getLiveSuggestion, 1500);
+                typingTimer = setTimeout(getLiveSuggestion, 2500);
             }
         });
 
