@@ -47,7 +47,7 @@
         </div>
     </header>
 
-<div class="flex flex-col lg:flex-row gap-6 flex-1 lg:h-[800px]">
+    <div class="flex flex-col lg:flex-row gap-6 flex-1 lg:h-[800px]">
         
         <div class="order-1 lg:order-2 lg:w-2/4 flex flex-col gap-4 relative min-h-[350px] lg:h-full">
             <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl flex flex-col relative flex-1 overflow-hidden">
@@ -65,20 +65,24 @@
         </div>
 
         <div class="order-2 lg:order-1 lg:w-1/4 bg-slate-800 border-2 border-slate-700 rounded-3xl p-6 flex flex-col overflow-y-auto no-scrollbars max-h-[350px] lg:max-h-none lg:h-full">
-            <h2 class="text-sm font-extrabold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2 shrink-0">
-                <i class="fas fa-bolt text-yellow-400"></i> Radar
+            <h2 class="text-sm font-extrabold text-slate-400 uppercase tracking-widest mb-6 flex items-center justify-between shrink-0">
+                <span class="flex items-center gap-2"><i class="fas fa-bolt text-yellow-400"></i> Radar</span>
+                <button onclick="getLiveSuggestion()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs transition-all active:scale-95 border border-slate-600">
+                    <i class="fas fa-sync-alt"></i> Analizar
+                </button>
             </h2>
             
-            <div id="liveWaiting" class="flex-1 flex flex-col justify-center items-center text-slate-500 opacity-60 text-center py-4">
-                <div class="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center mb-4 border-2 border-slate-600">
-                    <i class="fas fa-magic text-2xl text-slate-400"></i>
+            <div id="liveWaiting" class="flex-1 flex flex-col justify-center items-center text-slate-500 opacity-80 text-center py-4">
+                <div class="w-16 h-16 bg-slate-700 rounded-2xl flex items-center justify-center mb-4 border-2 border-slate-600 shadow-inner">
+                    <i class="fas fa-search text-2xl text-slate-400"></i>
                 </div>
-                <p class="text-sm font-bold">Escribe y haz una pausa.</p>
-                <p class="text-xs font-semibold mt-1">Tu frase se analizará aquí.</p>
+                <p class="text-sm font-bold text-slate-300">Radar Inactivo</p>
+                <p class="text-xs font-semibold mt-1">Haz clic en el botón superior para analizar tu última frase.</p>
             </div>
 
-            <div id="liveLoading" class="hidden flex-1 flex justify-center items-center py-8">
+            <div id="liveLoading" class="hidden flex-1 flex flex-col justify-center items-center py-8 gap-3">
                 <i class="fas fa-circle-notch fa-spin text-emerald-500 text-3xl"></i>
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-widest animate-pulse">Analizando...</span>
             </div>
 
             <div id="liveContent" class="hidden space-y-5 pb-2">
@@ -147,7 +151,7 @@
         const writingArea = document.getElementById('writingArea');
         const wordCountDisplay = document.getElementById('wordCount');
         
-        // Elementos Columna 1
+        // Elementos Columna 2
         const liveWaiting = document.getElementById('liveWaiting');
         const liveLoading = document.getElementById('liveLoading');
         const liveContent = document.getElementById('liveContent');
@@ -159,8 +163,8 @@
         const varC1 = document.getElementById('varC1');
         const liveStatusBox = document.getElementById('liveStatusBox');
 
+        // EVENTO DEL ÁREA DE TEXTO (Solo cuenta palabras, NO dispara el Radar)
         writingArea.addEventListener('input', () => {
-            // Contar palabras
             const words = writingArea.value.trim().split(/\s+/).filter(w => w.length > 0);
             wordCountDisplay.innerText = `${words.length} palabras`;
             
@@ -169,77 +173,53 @@
             writingArea.style.height = writingArea.scrollHeight + 'px'; 
         });
 
-// SUGERENCIAS EN TIEMPO REAL (COLUMNA 1)
-        let typingTimer;
+        // ----------------------------------------------------
+        // LÓGICA DEL RADAR MANUAL
+        // ----------------------------------------------------
         let lastAnalyzedChunk = "";  
-        let currentSuggestions = []; 
-        let fetchController = null; // <-- 1. NUEVA VARIABLE PARA CONTROLAR LA PETICIÓN
-
-        writingArea.addEventListener('input', () => {
-            // Contar palabras
-            const words = writingArea.value.trim().split(/\s+/).filter(w => w.length > 0);
-            wordCountDisplay.innerText = `${words.length} palabras`;
-            
-            // Magia para que el cuadro crezca dinámicamente
-            writingArea.style.height = 'auto'; 
-            writingArea.style.height = writingArea.scrollHeight + 'px'; 
-
-            // DISPARAR EL RADAR AQUÍ (Es más seguro que keyup)
-            clearTimeout(typingTimer);
-            if (writingArea.value.trim().length > 3) {
-                typingTimer = setTimeout(getLiveSuggestion, 2500);
-            }
-        });
+        let fetchController = null;
 
         async function getLiveSuggestion() {
             const text = writingArea.value.trim();
             
-            const chunks = text.split(/[\n.!?,;]+/).filter(c => c.trim().length > 0);
-            if (chunks.length === 0) return;
+            // Obtener solo la última frase real usando signos de puntuación y saltos de línea
+            const chunks = text.split(/[\n.!?;]+/).filter(c => c.trim().length > 0);
+            if (chunks.length === 0) {
+                alert("Escribe al menos una frase en el lienzo para poder analizarla.");
+                return;
+            }
+            
             let lastChunk = chunks[chunks.length - 1].trim();
-
             const words = lastChunk.split(/\s+/);
-            if (words.length > 12) {
-                lastChunk = words.slice(-12).join(' ');
+            
+            // Si la frase es larguísima, tomar las últimas 15 palabras
+            if (words.length > 15) {
+                lastChunk = words.slice(-15).join(' ');
             }
 
-            if (lastChunk.length < 3) return;
+            if (lastChunk.length < 3) {
+                alert("La frase es muy corta para analizar.");
+                return;
+            }
 
+            // Evitar re-analizar la misma frase exacta
             if (lastChunk.toLowerCase() === lastAnalyzedChunk.toLowerCase()) return;
-
-            const cleanChunk = lastChunk.toLowerCase().replace(/[^\w\s]/gi, '');
-            const isAdoptingSuggestion = currentSuggestions.some(sugg => 
-                sugg && sugg.toLowerCase().replace(/[^\w\s]/gi, '') === cleanChunk
-            );
-
-            if (isAdoptingSuggestion) {
-                liveStatusBox.className = "p-4 rounded-2xl bg-slate-700 border-2 border-slate-600";
-                liveCorrectionAlert.classList.add('hidden');
-                liveOriginalText.innerText = (words.length > 12 ? `"...${lastChunk}"` : `"${lastChunk}"`);
-                lastAnalyzedChunk = lastChunk; 
-                return; 
-            }
-
             lastAnalyzedChunk = lastChunk;
 
-            // <-- 2. CANCELAMOS LA PETICIÓN ANTERIOR SI AÚN ESTÁ EN PROCESO
-            if (fetchController) {
-                fetchController.abort();
-            }
+            // Cancelar petición anterior si el usuario presiona repetidamente
+            if (fetchController) fetchController.abort();
             fetchController = new AbortController();
-            const signal = fetchController.signal;
 
             try {
                 liveWaiting.classList.add('hidden');
                 liveContent.classList.add('hidden');
                 liveLoading.classList.remove('hidden');
 
-const prompt = `Analyze this exact phrase: "${lastChunk}". 
-CRITICAL INSTRUCTION: Output ONLY a valid JSON object. No markdown.
-RULE: You MUST provide distinct, level-appropriate synonyms or alternative expressions. DO NOT just repeat the original phrase.
+                const prompt = `Analyze this exact phrase: "${lastChunk}". 
+Provide synonyms or alternative expressions. Do not repeat the original phrase.
 {
     "has_error": true/false,
-    "correction": "The natural fix, or an empty string \\"\\" if no error",
+    "correction": "The natural fix, or an empty string if no error",
     "a2": "A simple alternative",
     "b1": "An intermediate alternative",
     "c1": "An advanced alternative"
@@ -248,31 +228,35 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
                 const res = await fetch('/api/writing', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    signal: signal, // <-- 3. CONECTAMOS LA SEÑAL DE CANCELACIÓN AQUÍ
+                    signal: fetchController.signal,
                     body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
                 });
                 
-                if (!res.ok) throw new Error("API Limit");
+                if (!res.ok) throw new Error("Error de API");
                 const data = await res.json();
-                
                 let rawText = data.candidates[0].content.parts[0].text;
-                const jsonStr = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);
-                const aiResponse = JSON.parse(jsonStr);
-
-                currentSuggestions = [
-                    aiResponse.a2, 
-                    aiResponse.b1, 
-                    aiResponse.c1, 
-                    aiResponse.correction
-                ];
+                
+                // PARSEO SEGURO CON TRY/CATCH
+                let aiResponse;
+                try {
+                    // Limpieza preventiva por si Gemini añade ```json a pesar de todo
+                    const cleanStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const start = cleanStr.indexOf('{');
+                    const end = cleanStr.lastIndexOf('}');
+                    const finalJson = (start !== -1 && end !== -1) ? cleanStr.substring(start, end + 1) : cleanStr;
+                    aiResponse = JSON.parse(finalJson);
+                } catch (parseError) {
+                    console.error("La IA devolvió un JSON inválido:", rawText);
+                    throw new Error("Formato de respuesta inválido de la IA");
+                }
 
                 liveLoading.classList.add('hidden');
                 liveContent.classList.remove('hidden');
 
-                liveOriginalText.innerText = (words.length > 12 ? `"...${lastChunk}"` : `"${lastChunk}"`);
-                varA2.innerText = aiResponse.a2;
-                varB1.innerText = aiResponse.b1;
-                varC1.innerText = aiResponse.c1;
+                liveOriginalText.innerText = (words.length > 15 ? `"...${lastChunk}"` : `"${lastChunk}"`);
+                varA2.innerText = aiResponse.a2 || '---';
+                varB1.innerText = aiResponse.b1 || '---';
+                varC1.innerText = aiResponse.c1 || '---';
 
                 if (aiResponse.has_error && aiResponse.correction) {
                     liveStatusBox.className = "p-4 rounded-2xl bg-red-500/10 border-2 border-red-500/30";
@@ -284,17 +268,22 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
                 }
 
             } catch (e) { 
-                if (e.name === 'AbortError') {
-                    console.log('Petición ignorada: escribiste más rápido.');
-                    return; 
-                }
-                console.error("Error en el radar:", e); // <-- Esto nos salvará la vida si falla
+                if (e.name === 'AbortError') return; 
+                console.error("Error en el radar:", e);
                 liveLoading.classList.add('hidden');
                 liveWaiting.classList.remove('hidden');
+                
+                // Pequeña alerta visual
+                const alertHtml = `<div class="text-red-400 text-xs text-center mt-2 font-bold"><i class="fas fa-exclamation-triangle"></i> Error de conexión</div>`;
+                if(!liveWaiting.innerHTML.includes('Error de conexión')) {
+                    liveWaiting.insertAdjacentHTML('beforeend', alertHtml);
+                }
             }
         }
 
-        // MINI TRADUCTOR
+        // ----------------------------------------------------
+        // LÓGICA DEL DICCIONARIO RÁPIDO
+        // ----------------------------------------------------
         async function handleTranslate(e) {
             if (e.key === 'Enter') {
                 const input = document.getElementById('quickDict');
@@ -312,13 +301,19 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
                         body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Translate this from Spanish to English. ONLY output the English text: " + word }] }] })
                     });
                     const data = await res.json();
-                    result.innerText = data.candidates[0].content.parts[0].text.trim();
+                    
+                    // Asegurarnos de limpiar la respuesta del traductor
+                    let translated = data.candidates[0].content.parts[0].text.replace(/["\n{}]/g, '').trim();
+                    result.innerText = translated;
+                    
                     setTimeout(() => { input.value = ''; result.classList.add('hidden'); }, 6000);
                 } catch (err) { result.innerText = "Error"; }
             }
         }
 
-        // DIAGNÓSTICO COMPLETO (COLUMNA 3)
+        // ----------------------------------------------------
+        // LÓGICA DE EVALUACIÓN COMPLETA
+        // ----------------------------------------------------
         const SYSTEM_PROMPT = `
         Analyze the following English text.
         CRITICAL RULES:
@@ -336,14 +331,13 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
         }
         `;
 
-
         async function analyzeText() {
             const text = writingArea.value.trim();
             const sysMsg = document.getElementById('systemMessage');
             sysMsg.classList.add('hidden');
 
             if (text.length < 10) {
-                sysMsg.innerText = "Escribe un poco más para poder evaluar.";
+                sysMsg.innerText = "Escribe un poco más para poder evaluar (al menos 10 caracteres).";
                 sysMsg.classList.remove('hidden');
                 return;
             }
@@ -363,8 +357,19 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
 
                 const data = await res.json();
                 let rawText = data.candidates[0].content.parts[0].text;
-                const jsonStr = rawText.substring(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1);
-                const aiResponse = JSON.parse(jsonStr);
+                
+                // PARSEO SEGURO CON TRY/CATCH
+                let aiResponse;
+                try {
+                    const cleanStr = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const start = cleanStr.indexOf('{');
+                    const end = cleanStr.lastIndexOf('}');
+                    const finalJson = (start !== -1 && end !== -1) ? cleanStr.substring(start, end + 1) : cleanStr;
+                    aiResponse = JSON.parse(finalJson);
+                } catch(e) {
+                    console.error("Error parseando diagnóstico completo:", rawText);
+                    throw new Error("Formato inválido en evaluación global");
+                }
 
                 document.getElementById('emptyState').classList.add('hidden');
                 document.getElementById('resultsPanel').classList.remove('hidden');
@@ -374,7 +379,6 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
 
                 const errorList = document.getElementById('errorList');
                 if (aiResponse.errors_to_practice && aiResponse.errors_to_practice.length > 0) {
-                    // Actualizamos las tarjetas de error para que se vean sólidas y limpias
                     errorList.innerHTML = aiResponse.errors_to_practice.map(err => `
                         <div class="bg-slate-700 p-4 rounded-2xl border-2 border-slate-600 text-sm flex flex-col gap-2">
                             <div class="flex items-center gap-2">
@@ -404,6 +408,7 @@ RULE: You MUST provide distinct, level-appropriate synonyms or alternative expre
             } catch (error) { 
                 sysMsg.innerText = "Ocurrió un error al conectar con la IA.";
                 sysMsg.classList.remove('hidden');
+                console.error(error);
             } finally { 
                 btn.innerHTML = '<i class="fas fa-check-double"></i> Evaluar'; 
                 btn.disabled = false; 

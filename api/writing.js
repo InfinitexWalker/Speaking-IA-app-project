@@ -21,14 +21,15 @@ export default async function handler(req, res) {
         const model = genAI.getGenerativeModel({
           model: modelName,
           generationConfig: {
-            temperature: 0.2,      // Temperatura baja para análisis riguroso y JSON estricto
-            maxOutputTokens: 800,  // Margen amplio para las correcciones de texto largo
+            temperature: 0.2,      
+            maxOutputTokens: 800,  
+            // ESTA ES LA CLAVE: Obliga a la IA a devolver un JSON puro y válido siempre.
+            responseMimeType: "application/json", 
           }
         });
 
         const result = await model.generateContent({ contents });
-        const response = await result.response;
-        const text = response.text();
+        const text = result.response.text();
 
         return res.status(200).json({
           candidates: [{ content: { parts: [{ text }] } }]
